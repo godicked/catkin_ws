@@ -1,0 +1,58 @@
+<launch>
+  <master auto="start"/>
+
+  <!-- Run the map server -->
+  <!--<node name="map_server" pkg="map_server" type="map_server" args="$(find my_map_package)/my_map.pgm my_map_resolution"/>-->
+
+  <!--- Run AMCL -->
+  <!--<include file="$(find amcl)/examples/amcl_omni.launch" />-->
+
+  <include file="$(find stdr_robot)/launch/robot_manager.launch" />
+	
+	<node type="stdr_server_node" pkg="stdr_server" name="stdr_server" output="screen" args="$(find stdr_resources)/maps/sparse_obstacles.yaml"/>
+
+	<node pkg="tf" type="static_transform_publisher" name="world2map" args="0 0 0 0 0 0  world map 100" />
+	
+	<!--<include file="$(find stdr_gui)/launch/stdr_gui.launch"/>-->
+	
+	<node pkg="stdr_robot" type="robot_handler" name="$(anon robot_spawn)" args="add $(find stdr_resources)/resources/robots/pandora_robot.yaml 1 2 0" />
+
+  <!--<include file="$(find stdr_launchers)/launch/rviz.launch" />-->
+  <node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find global_planner)/map.yaml">
+  <remap from="map" to="map2" />
+  </node>
+
+
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+    <remap from="map" to="map2"/>
+    <remap from="cmd_vel" to="robot0/cmd_vel" />
+    <remap from="odom" to="robot0/odom" />
+    <rosparam file="$(find global_planner)/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find global_planner)/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find global_planner)/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find global_planner)/global_costmap_params.yaml" command="load" />
+    <!--<param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>-->
+    <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+    <param name="controller_frequency" value="5.0" />
+    <rosparam file="$(find global_planner)/base_local_planner_params.yaml" command="load" />
+  </node>
+
+  <node pkg="dstar_node" type="dstar_node" respawn="false" name="dstar_node" output="screen" />
+  <node pkg="rviz" type="rviz" name="rviz"/>
+  
+
+	
+
+	<!--<node pkg="gmapping" type="slam_gmapping" name="gmap">
+	<remap from="scan" to="/robot0/laser_0" />
+	<remap from="map" to="/map2" />
+	<param name="base_frame" value="/robot0" />
+  <param name="delta" value="0.02" />
+  <param name="maxUrange" value="4" />
+	</node>-->
+
+	<!--<node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" name="keyboard">
+	<remap from="cmd_vel" to="robot0/cmd_vel" />
+	</node>-->
+
+</launch>
