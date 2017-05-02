@@ -18,9 +18,9 @@
 	<node pkg="stdr_robot" type="robot_handler" name="$(anon robot_spawn)" args="add $(find stdr_resources)/resources/robots/pandora_robot.yaml 1 2 0" />
 
   <!--<include file="$(find stdr_launchers)/launch/rviz.launch" />-->
-  <node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find global_planner)/map.yaml">
+  <!--<node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find global_planner)/map.yaml">
   <remap from="map" to="map2" />
-  </node>
+  </node>-->
 
 
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
@@ -43,13 +43,14 @@
 
 	
 
-	<!--<node pkg="gmapping" type="slam_gmapping" name="gmap">
+	<node pkg="gmapping" type="slam_gmapping" name="gmap">
 	<remap from="scan" to="/robot0/laser_0" />
 	<remap from="map" to="/map2" />
 	<param name="base_frame" value="/robot0" />
-  <param name="delta" value="0.02" />
-  <param name="maxUrange" value="4" />
-	</node>-->
+  <param name="delta" value="0.1" />
+  <param name="maxUrange" value="6.0" />
+  <param name="maxRange" value="6.0" />
+	</node>
 
 	<!--<node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" name="keyboard">
 	<remap from="cmd_vel" to="robot0/cmd_vel" />
