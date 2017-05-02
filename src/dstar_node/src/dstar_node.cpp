@@ -14,7 +14,7 @@ using namespace dstar;
 
 DStar *planner;
 costmap_t costmap;
-geometry_msgs::Point pStart_, pGoal_, pNewStart;
+geometry_msgs::Point pStart_, pGoal_, pPose;
 geometry_msgs::PoseStamped sGoal_;
 ros::NodeHandle *n;
 ros::Subscriber map_sub;
@@ -37,8 +37,8 @@ void refresh_map();
 
 void pose_callback(nav_msgs::OdometryConstPtr odom)
 {
-  pNewStart.x = odom->pose.pose.position.x;
-  pNewStart.y = odom->pose.pose.position.y;
+  pPose.x = odom->pose.pose.position.x;
+  pPose.y = odom->pose.pose.position.y;
 }
 
 void map_callback(nav_msgs::OccupancyGridConstPtr grid)
@@ -56,6 +56,7 @@ void refresh_map()
 
 void update_callback(map_msgs::OccupancyGridUpdateConstPtr gridUpdate)
 {
+  ROS_INFO("update");
   int width = gridUpdate->width;
   int size = width * gridUpdate->height;
   int origin_x = gridUpdate->x;
@@ -63,16 +64,20 @@ void update_callback(map_msgs::OccupancyGridUpdateConstPtr gridUpdate)
   bool rebuild = false;
 
   unsigned int sx, sy;
-  costmap.worldToMap(pNewStart.x, pNewStart.y, sx, sy);
+  costmap.worldToMap(pPose.x, pPose.y, sx, sy);
   planner->updateStart(sx, sy);
 
   for(int i = 0; i < size; i++)
   {
     unsigned char cost = gridUpdate->data[i];
-    unsigned int my = i / width;
-    unsigned int mx = i - (my * width);
+    unsigned int my = (i / width) + origin_y;
+    unsigned int mx = i - (my * width) + origin_x;
 
-    rebuild |= planner->updateCost(mx + origin_x, my + origin_y, cost);
+    if(mx < costmap.getSizeInCellsX() &&
+       my < costmap.getSizeInCellsY())
+    {   
+      rebuild |= planner->updateCost(mx, my, cost);
+    }
   }
   if(rebuild)
   {
