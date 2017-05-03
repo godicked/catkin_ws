@@ -12,7 +12,8 @@ inflation_radius: 0.3
     
     #- {name: event_layer,      type: "event_layer::EventLayer"}
 
-publish_frequency: 2.0
+update_frequency: 4.0
+publish_frequency: 4.0
 
 obstacle_layer:
     footprint_clearing_enabled: false
@@ -21,4 +22,4 @@ obstacle_layer:
 
 
 static_layer:
-    subscribe_to_updates: true
+    subscribe_to_updates: false
