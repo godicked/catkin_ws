@@ -4,7 +4,20 @@
 using namespace std;
 using namespace boost;
 
+void removeN(list<rrt::Node *> *list, rrt::Node *u)
+{
+    auto it = list->begin();
+    while(it != list->end())
+    {
+        if(*it == u)
+        {
+            list->erase(it);
+            return;
+        }
 
+        it++;
+    }
+}
 
 
 namespace rrt
@@ -18,123 +31,46 @@ namespace rrt
     
     void RRTx::addVertex(Node v)
     {
-        v.self = add_vertex(G_s);
-        vhash[v.self] = v; 
-        
         point v_point(v.x, v.y);
-        rtree.insert(make_pair(v_point, v.self));
+        rtree.insert(make_pair(v_point, v));
     }
 
-    vector<Node> RRTx::inN(Node v)
+    list<Node *> RRTx::inN(Node v)
     {
-        auto edges_s = inN_s(v);
-        auto edges_r = inN_r(v);
-
-        edges_s.insert(std::end(edges_s), std::begin(edges_r), std::end(edges_r));
-        return edges_s;
+        v.inNz.splice(v.inNz.end(), v.inNr);
+        return v.inNz;
     }
 
-    vector<Node> RRTx::outN(Node v)
+    list<Node *> RRTx::outN(Node v)
     {
-        auto edges_s = outN_s(v);
-        auto edges_r = outN_r(v);
-
-        edges_s.insert(std::end(edges_s), std::begin(edges_r), std::end(edges_r));
-        return edges_s;
+        v.outNz.splice(v.outNz.end(), v.outNr);
+        return v.outNz;
     }
 
-    vector<Node> RRTx::inN__(Node v, Graph g)
-    {
-        Graph::in_edge_iterator it, end;
-        tie(it, end) = in_edges(v.self, g);
-        
-        vector<Node> neighbours;
-        for(; it != end; it++)
-        {
-            auto u = source(*it, g);
-            Node u_data = vhash[u]; 
-            neighbours.push_back(u_data);
-        }
-        
-        return neighbours;
-    }
 
-    vector<Node> RRTx::outN__(Node v, Graph g)
+    Node *RRTx::nearest(Node v)
     {
-        Graph::out_edge_iterator it, end;
-        tie(it, end) = out_edges(v.self, g);
-        
-        vector<Node> neighbours;
-        for(; it != end; it++)
-        {
-            auto u = target(*it, g);
-            Node u_data = vhash[u]; 
-            neighbours.push_back(u_data);
-        }
-        
-        return neighbours;
-    }
-
-    vector<Node> RRTx::inN_r(Node v)
-    {
-        return inN__(v, G_r);
-    }
-
-    vector<Node> RRTx::inN_s(Node v)
-    {
-        return inN__(v, G_s);
-    }
-
-    vector<Node> RRTx::outN_r(Node v)
-    {
-        return outN__(v, G_r);
-    }
-
-    vector<Node> RRTx::outN_s(Node v)
-    {
-        return outN__(v, G_s);
-    }
-
-    void RRTx::addEdge_r(Node v, Node u)
-    {
-        add_edge(v.self, u.self, G_r);
-    }
-
-    void RRTx::addEdge_s(Node v, Node u)
-    {
-        add_edge(v.self, u.self, G_s);
-    }
-
-    Node RRTx::parent(Node v)
-    {
-        return v; vhash[v.parent];
-    }
-
-    Node RRTx::nearest(Node v)
-    {
-        vector<value> result;
+        vector<Leaf> result;
         point p(v.x, v.y);
 
         rtree.query(bgi::nearest(p, 1), back_inserter(result));
-        auto vertex = result[0].second;
-
-        return vhash[vertex]; 
+        return &result[0].second; 
     }
 
     RRTx::NearInfo RRTx::near(Node v, double radius)
     {
-        vector<value> search;
-        point p1(max((double)0, v.x - radius), max((double)0, v.y - radius)), 
+        vector<Leaf> search;
+        point p1(v.x - radius, v.y - radius), 
               p2(v.x + radius, v.y + radius);
+
         box b(p1, p2);
 
         NearInfo nodes;
         rtree.query(bgi::intersects(b), back_inserter(search));
-        for(int i = 0; i < nodes.size(); i++)
+        for(int i = 0; i < search.size(); i++)
         {
-            auto vertex = search[i].second;
-            Node node   = vhash[vertex];
-            float dist  = distance(node, v);
+            Node *node  = &search[i].second;
+            float dist  = distance(*node, v);
 
             if(dist > radius)
                 continue;
@@ -169,12 +105,23 @@ namespace rrt
 
     void RRTx::findParent(Node &v, NearInfo vnear)
     {
+        for(auto near : vnear)
+        {
+            double dist = near.first;
+            Node *u     = near.second;
+            
+            if(v.lmc > dist + u->lmc &&
+               trajectoryExist(v, *u, dist))
+            {
+                v.parent    = u;
+                v.lmc       = dist + u->lmc;
+            }
+        }
         
     }
 
-    bool RRTx::trajectoryExist(Node v, Node u)
+    bool RRTx::trajectoryExist(Node v, Node u, double dist)
     {
-        double dist = distance(v, u);
         double dx = u.x - v.x;
         double dy = u.y - v.y;
 
@@ -194,6 +141,29 @@ namespace rrt
         }
         return true;
     }
+
+    void RRTx::cullNeighbors(Node *v, double radius)
+    {
+        auto it = v->outNr.begin();
+
+        while(it != v->outNr.end())
+        {
+            Node *u = *it;
+            if(v->parent != u && radius < distance(*v, *u))
+            {
+                it = v->outNr.erase(it);
+                removeN(&u->inNr, v);
+            }
+            else
+            {
+                it++;
+            }
+        }
+    }
+
+    
+
+
 
 
 };

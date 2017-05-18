@@ -25,26 +25,31 @@ typedef Graph::vertex_descriptor vertex;
 
 struct Node
 {
-    vertex  parent;
-    vertex  self;
+    Node               *parent;
+    std::list<Node *>   childs;
 
-    double   g;
-    double   lmc;
+    double  g;
+    double  lmc;
 
-    double   x;
-    double   y;
+    double  x;
+    double  y;
+
+    std::list<Node *> inNz;
+    std::list<Node *> outNz;
+    
+    std::list<Node *> inNr;
+    std::list<Node *> outNr; 
 };
 
 
 class RRTx
 {
     typedef bg::model::point<double, 2, bg::cs::cartesian> point;
-    typedef bg::model::segment<point> segment;
+    //typedef bg::model::segment<point> segment;
     typedef bg::model::box<point> box;
-    typedef std::pair<point, vertex> value;
-    typedef bgi::rtree< value, bgi::rstar<16> > RTree; 
-    typedef boost::unordered_map<vertex, Node> Hash;
-    typedef std::vector<std::pair<float, Node> > NearInfo;
+    typedef std::pair<point, Node> Leaf;
+    typedef bgi::rtree<Leaf, bgi::rstar<16> > RTree; 
+    typedef std::vector<std::pair<float, Node *> > NearInfo;
 
     public:
                             RRTx            () {}
@@ -56,34 +61,21 @@ class RRTx
         void                addVertex       (Node v);
         
 
-        std::vector<Node>   inN             (Node v);
-        std::vector<Node>   outN            (Node v);
+        std::list<Node *>   inN             (Node v);
+        std::list<Node *>   outN            (Node v);
         
-        std::vector<Node>   inN_s           (Node v);
-        std::vector<Node>   outN_s          (Node v);
-        void                addEdge_s       (Node v, Node u);
-
-        std::vector<Node>   inN_r           (Node v);
-        std::vector<Node>   outN_r          (Node v);
-        void                addEdge_r       (Node v, Node u);
-
-        std::vector<Node>   inN__           (Node v, Graph g);
-        std::vector<Node>   outN__          (Node v, Graph g); 
-        
-        Node                parent          (Node v);
-        Node                nearest         (Node v);
+       
+        Node               *nearest         (Node v);
         NearInfo            near            (Node v, double radius);
         double              distance        (Node v, Node u);
         Node                saturate        (Node v, Node u);
         void                findParent      (Node &v, NearInfo vnear);
-        bool                trajectoryExist (Node v, Node u);
+        bool                trajectoryExist (Node v, Node u, double dist);
         void                extend          (Node v, double radius);
+        void                cullNeighbors   (Node *v, double radius);
         
-        Graph   G_s;
-        Graph   G_r;
-        Hash    vhash;
-        RTree   rtree;
 
+        RTree   rtree;
         costmap_2d::Costmap2D *costmap_;
 
         double maxDist;
