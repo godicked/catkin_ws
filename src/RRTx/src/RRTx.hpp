@@ -25,7 +25,7 @@ typedef Graph::vertex_descriptor vertex;
 
 struct Node
 {
-    Node               *parent;
+    Node               *parent = nullptr;
     std::list<Node *>   childs;
 
     double  g;
@@ -49,7 +49,8 @@ class RRTx
     typedef bg::model::box<point> box;
     typedef std::pair<point, Node> Leaf;
     typedef bgi::rtree<Leaf, bgi::rstar<16> > RTree; 
-    typedef std::vector<std::pair<float, Node *> > NearInfo;
+    typedef std::tuple<Node *, float, bool> NearInfo;
+    typedef std::vector<NearInfo > NearInfoVec;
 
     public:
                             RRTx            () {}
@@ -58,7 +59,7 @@ class RRTx
         void                setMaxDist      (double max_dist);
     private:
         
-        void                addVertex       (Node v);
+        void                addVertex       (Node &v);
         
 
         std::list<Node *>   inN             (Node v);
@@ -66,13 +67,13 @@ class RRTx
         
        
         Node               *nearest         (Node v);
-        NearInfo            near            (Node v, double radius);
+        NearInfoVec         near            (Node v, double radius);
         double              distance        (Node v, Node u);
         Node                saturate        (Node v, Node u);
-        void                findParent      (Node &v, NearInfo vnear);
-        bool                trajectoryExist (Node v, Node u, double dist);
-        void                extend          (Node v, double radius);
-        void                cullNeighbors   (Node *v, double radius);
+        void                findParent      (Node &v, NearInfoVec &vnear);
+        bool                trajectoryExist (Node v, NearInfo &near);
+        void                extend          (Node &v, double radius);
+        void                cullNeighbors   (Node &v, double radius);
         
 
         RTree   rtree;

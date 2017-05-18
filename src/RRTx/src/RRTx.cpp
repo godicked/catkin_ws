@@ -29,7 +29,7 @@ namespace rrt
     }
 
     
-    void RRTx::addVertex(Node v)
+    void RRTx::addVertex(Node &v)
     {
         point v_point(v.x, v.y);
         rtree.insert(make_pair(v_point, v));
@@ -57,7 +57,7 @@ namespace rrt
         return &result[0].second; 
     }
 
-    RRTx::NearInfo RRTx::near(Node v, double radius)
+    RRTx::NearInfoVec RRTx::near(Node v, double radius)
     {
         vector<Leaf> search;
         point p1(v.x - radius, v.y - radius), 
@@ -65,7 +65,7 @@ namespace rrt
 
         box b(p1, p2);
 
-        NearInfo nodes;
+        NearInfoVec nodes;
         rtree.query(bgi::intersects(b), back_inserter(search));
         for(int i = 0; i < search.size(); i++)
         {
@@ -75,7 +75,7 @@ namespace rrt
             if(dist > radius)
                 continue;
 
-            nodes.push_back(make_pair(dist, node));
+            nodes.push_back(make_tuple(node, dist, false));
         }
 
         return nodes;
@@ -103,28 +103,31 @@ namespace rrt
         return v;
     }
 
-    void RRTx::findParent(Node &v, NearInfo vnear)
+    void RRTx::findParent(Node &v, NearInfoVec &vnear)
     {
         for(auto near : vnear)
         {
-            double dist = near.first;
-            Node *u     = near.second;
+            double dist = get<1>(near);
+            Node *u     = get<0>(near);
             
             if(v.lmc > dist + u->lmc &&
-               trajectoryExist(v, *u, dist))
+               trajectoryExist(v, near))
             {
                 v.parent    = u;
                 v.lmc       = dist + u->lmc;
+                
             }
         }
         
     }
 
-    bool RRTx::trajectoryExist(Node v, Node u, double dist)
+    bool RRTx::trajectoryExist(Node v, NearInfo &near)
     {
+        Node u      = *get<0>(near);
+        double dist = get<1>(near);
+
         double dx = u.x - v.x;
         double dy = u.y - v.y;
-
 
         double resolution = costmap_->getResolution();
         for(double i = 0; i < dist; i += resolution)
@@ -139,20 +142,26 @@ namespace rrt
             if(cost > 200)
                 return false;
         }
+
+        get<2>(near) = true;
         return true;
     }
 
-    void RRTx::cullNeighbors(Node *v, double radius)
-    {
-        auto it = v->outNr.begin();
+    /*  Algorithm 3: cullNeighbors(v, r)
+     *
+     */
 
-        while(it != v->outNr.end())
+    void RRTx::cullNeighbors(Node &v, double radius)
+    {
+        auto it = v.outNr.begin();
+
+        while(it != v.outNr.end())
         {
             Node *u = *it;
-            if(v->parent != u && radius < distance(*v, *u))
+            if(v.parent != u && radius < distance(v, *u))
             {
-                it = v->outNr.erase(it);
-                removeN(&u->inNr, v);
+                it = v.outNr.erase(it);
+                removeN(&u->inNr, &v);
             }
             else
             {
@@ -161,10 +170,53 @@ namespace rrt
         }
     }
 
-    
+    /*  Algorithm 2: extend(v, r)
+     *  
+     *
+     */
+    void RRTx::extend(Node &v, double radius)
+    {
 
+        //Get Information about Nodes near v in the given radius
+        //Each NearInfo tuple contains the target node u, the distance d(v, u),
+        //and a bool saving the collision test made by trajectoryExist()
+        //(called in findParent)
 
+        NearInfoVec vnear = near(v, radius);
+        findParent(v, vnear);
+        if(v.parent == nullptr)
+            return;
 
+        v.parent->childs.push_back(&v);
+
+        for(auto near : vnear)
+        {
+            // Trajectory from v to u already calculated by
+            // findParent(v, near)
+            // near = (Node *u, float dist, bool trajExist)
+            Node *u         = get<0>(near);
+            bool trajExist  = get<2>(near);
+
+            if(trajExist)
+            {
+                v.outNz.push_back(u);
+                u->inNr.push_back(&v);
+            }
+
+            // Inverse trajectory u to v.
+            // Never calculate, so we call trajectoryExist(u, near)
+            // near = (v, dist = same as before, trajExist = false)
+            
+            get<0>(near) = &v;
+            get<2>(near) = false;
+
+            if(trajectoryExist(*u, near))
+            {
+                u->outNr.push_back(&v);
+                v.inNz.push_back(u);
+            }
+        }
+   }
 
 };
 
