@@ -30,13 +30,11 @@ bool isInitialized = false;
 
 void startPlanning()
 {
-  map_sub->unsubscribe();
   update_sub->subscribe();
 }
 
 void stopPlanning()
 {
-  map_sub->subscribe();
   update_sub->unsubscribe();
 }
 

@@ -1,20 +1,25 @@
 cmake_minimum_required(VERSION 2.8.3)
-set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
-project(global_planner)
+project(RRTx)
 
 ## Add support for C++11, supported in ROS Kinetic and newer
+#add_definitions(-std=c++11)
+#set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 add_definitions(-std=c++11)
+
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  geometry_msgs
   nav_core
   roscpp
+  std_msgs
+  costmap_2d
 )
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED COMPONENTS system)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -70,7 +75,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
+#   geometry_msgs#   std_msgs
 # )
 
 ################################################
@@ -102,12 +107,12 @@ find_package(catkin REQUIRED COMPONENTS
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
- catkin_package(
+catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES global_planer
-   CATKIN_DEPENDS nav_core roscpp
-#  #DEPENDS system_lib
- )
+#  LIBRARIES RRTx
+  CATKIN_DEPENDS geometry_msgs nav_core roscpp std_msgs
+#  DEPENDS system_lib
+)
 
 ###########
 ## Build ##
@@ -120,16 +125,9 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_library(dstar_lib src/dstar.cpp)
-add_library(global_planner_lib src/global_planner.cpp)
-target_link_libraries(global_planner_lib dstar_lib)
-
-
-
-
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/global_planer.cpp
+#   src/${PROJECT_NAME}/RRTx.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -140,7 +138,7 @@ target_link_libraries(global_planner_lib dstar_lib)
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/global_planer_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/RRTx_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -197,10 +195,15 @@ target_link_libraries(global_planner_lib dstar_lib)
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_global_planer.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_RRTx.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+
+add_executable(rrtx_lib src/RRTx.cpp)
+target_link_libraries(rrtx_lib ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} boost_system)
+
+

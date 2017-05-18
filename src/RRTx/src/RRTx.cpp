@@ -12,7 +12,7 @@ namespace rrt
     
     RRTx::RRTx(costmap_2d::Costmap2D *costmap)
     {
-        costmap_ = costmap;
+      costmap_ = costmap;
     }
 
     
@@ -121,33 +121,34 @@ namespace rrt
         return vhash[vertex]; 
     }
 
-    vector<Node> RRTx::near(Node v, float radius)
+    vector<pair<float, Node> > RRTx::near(Node v, double radius)
     {
         vector<value> search;
-        point p1(max((float)0, v.x - radius), max((float)0, v.y - radius)), 
+        point p1(max((double)0, v.x - radius), max((double)0, v.y - radius)), 
               p2(v.x + radius, v.y + radius);
         box b(p1, p2);
 
-        vector<Node> nodes;
+        vector<pair<float, Node> >   nodes;
         rtree.query(bgi::intersects(b), back_inserter(search));
         for(int i = 0; i < nodes.size(); i++)
         {
             auto vertex = search[i].second;
             Node node   = vhash[vertex];
+            float dist  = distance(node, v);
 
-            if(distance(node, v) > radius)
+            if(dist > radius)
                 continue;
 
-            nodes.push_back(node);
+            nodes.push_back(make_pair(dist, node));
         }
 
         return nodes;
     }
 
-    float RRTx::distance(Node v, Node u)
+    double RRTx::distance(Node v, Node u)
     {
-        float dx2 = (v.x - u.x) * (v.x - u.x);
-        float dy2 = (v.y - u.y) * (v.y - u.y);
+        double dx2 = (v.x - u.x) * (v.x - u.x);
+        double dy2 = (v.y - u.y) * (v.y - u.y);
 
         return sqrt(dx2 + dy2);
     }
@@ -155,10 +156,10 @@ namespace rrt
 
     Node RRTx::saturate(Node v, Node u)
     {
-        float dist = distance(v, u);
+        double dist = distance(v, u);
 
-        float dx = (v.x - u.x) / dist;
-        float dy = (v.y - u.y) / dist;
+        double dx = (v.x - u.x) / dist;
+        double dy = (v.y - u.y) / dist;
 
         v.x = u.x + dx * maxDist;
         v.y = u.y + dy * maxDist;
@@ -171,7 +172,29 @@ namespace rrt
         
     }
 
-    
+    bool RRTx::trajectoryExist(Node v, Node u)
+    {
+        double dist = distance(v, u);
+        double dx = u.x - v.x;
+        double dy = u.y - v.y;
+
+
+        double resolution = costmap_->getResolution();
+        for(double i = 0; i < dist; i += resolution)
+        {
+            double wx = v.x + dx * i;
+            double wy = v.y + dy * i;
+
+            unsigned int mx, my;
+            costmap_->worldToMap(wx, wy, mx, my);
+            unsigned char cost = costmap_->getCost(mx, my);
+            
+            if(cost > 200)
+                return false;
+        }
+        return true;
+    }
+
 
 };
 
