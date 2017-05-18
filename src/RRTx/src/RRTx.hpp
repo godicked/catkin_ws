@@ -75,7 +75,7 @@ class RRTx
         NearInfo            near            (Node v, double radius);
         double              distance        (Node v, Node u);
         Node                saturate        (Node v, Node u);
-        void                findParent      (Node &v, std::vector<Node> vnear);
+        void                findParent      (Node &v, NearInfo vnear);
         bool                trajectoryExist (Node v, Node u);
         void                extend          (Node v, double radius);
         

@@ -121,14 +121,14 @@ namespace rrt
         return vhash[vertex]; 
     }
 
-    vector<pair<float, Node> > RRTx::near(Node v, double radius)
+    RRTx::NearInfo RRTx::near(Node v, double radius)
     {
         vector<value> search;
         point p1(max((double)0, v.x - radius), max((double)0, v.y - radius)), 
               p2(v.x + radius, v.y + radius);
         box b(p1, p2);
 
-        vector<pair<float, Node> >   nodes;
+        NearInfo nodes;
         rtree.query(bgi::intersects(b), back_inserter(search));
         for(int i = 0; i < nodes.size(); i++)
         {
@@ -167,7 +167,7 @@ namespace rrt
         return v;
     }
 
-    void RRTx::findParent(Node &v, vector<Node> vnear)
+    void RRTx::findParent(Node &v, NearInfo vnear)
     {
         
     }
