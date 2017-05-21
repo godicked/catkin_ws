@@ -4,6 +4,9 @@
 using namespace std;
 using namespace boost;
 
+const double infinity = numeric_limits<double>::infinity();
+
+
 void removeN(list<rrt::Node *> *list, rrt::Node *u)
 {
     auto it = list->begin();
@@ -29,10 +32,10 @@ namespace rrt
     }
 
     
-    void RRTx::addVertex(Node &v)
+    void RRTx::addVertex(Node *v)
     {
-        point v_point(v.x, v.y);
-        rtree.insert(make_pair(v_point, v));
+        point v_point(v->x, v->y);
+        rtree.insert(make_pair(v_point, *v));
     }
 
     list<Node *> RRTx::inN(Node v)
@@ -57,7 +60,7 @@ namespace rrt
         return &result[0].second; 
     }
 
-    RRTx::NearInfoVec RRTx::near(Node v, double radius)
+    RRTx::NearInfoVec RRTx::near(Node v)
     {
         vector<Leaf> search;
         point p1(v.x - radius, v.y - radius), 
@@ -103,18 +106,18 @@ namespace rrt
         return v;
     }
 
-    void RRTx::findParent(Node &v, NearInfoVec &vnear)
+    void RRTx::findParent(Node *v, NearInfoVec &vnear)
     {
         for(auto near : vnear)
         {
             double dist = get<1>(near);
             Node *u     = get<0>(near);
             
-            if(v.lmc > dist + u->lmc &&
-               trajectoryExist(v, near))
+            if(v->lmc > dist + u->lmc &&
+               trajectoryExist(*v, near))
             {
-                v.parent    = u;
-                v.lmc       = dist + u->lmc;
+                v->parent    = u;
+                v->lmc       = dist + u->lmc;
                 
             }
         }
@@ -148,20 +151,20 @@ namespace rrt
     }
 
     /*  Algorithm 3: cullNeighbors(v, r)
-     *
+     *  radius is a member variable
      */
 
-    void RRTx::cullNeighbors(Node &v, double radius)
+    void RRTx::cullNeighbors(Node *v)
     {
-        auto it = v.outNr.begin();
+        auto it = v->outNr.begin();
 
-        while(it != v.outNr.end())
+        while(it != v->outNr.end())
         {
             Node *u = *it;
-            if(v.parent != u && radius < distance(v, *u))
+            if(v->parent != u && radius < distance(*v, *u))
             {
-                it = v.outNr.erase(it);
-                removeN(&u->inNr, &v);
+                it = v->outNr.erase(it);
+                removeN(&u->inNr, v);
             }
             else
             {
@@ -171,10 +174,10 @@ namespace rrt
     }
 
     /*  Algorithm 2: extend(v, r)
-     *  
+     *  radius is a member variable
      *
      */
-    void RRTx::extend(Node &v, double radius)
+    void RRTx::extend(Node *v)
     {
 
         //Get Information about Nodes near v in the given radius
@@ -182,12 +185,12 @@ namespace rrt
         //and a bool saving the collision test made by trajectoryExist()
         //(called in findParent)
 
-        NearInfoVec vnear = near(v, radius);
+        NearInfoVec vnear = near(*v);
         findParent(v, vnear);
-        if(v.parent == nullptr)
+        if(v->parent == nullptr)
             return;
 
-        v.parent->childs.push_back(&v);
+        v->parent->childs.push_back(v);
 
         for(auto near : vnear)
         {
@@ -199,24 +202,139 @@ namespace rrt
 
             if(trajExist)
             {
-                v.outNz.push_back(u);
-                u->inNr.push_back(&v);
+                v->outNz.push_back(u);
+                u->inNr.push_back(v);
             }
 
             // Inverse trajectory u to v.
             // Never calculate, so we call trajectoryExist(u, near)
             // near = (v, dist = same as before, trajExist = false)
             
-            get<0>(near) = &v;
+            get<0>(near) = v;
             get<2>(near) = false;
 
             if(trajectoryExist(*u, near))
             {
-                u->outNr.push_back(&v);
-                v.inNz.push_back(u);
+                u->outNr.push_back(v);
+                v->inNz.push_back(u);
             }
         }
-   }
+    }
+
+    void RRTx::verrifyQueue(Node *v)
+    {
+        if(queueContains(v))
+            queueUpdate(v);
+        else
+            queueInsert(v);
+    }
+
+    void RRTx::rewireNeighbors(Node *v)
+    {
+        if( v->g - v->lmc > epsilon)
+        {
+            cullNeighbors(v);
+            for(Node *u : inN(*v))
+            {
+                if(u == v->parent)
+                    continue;
+
+                double dist = distance(*u, *v) + v->lmc;
+                if(u->lmc > dist)
+                {
+                    u->lmc      = dist;
+                    u->parent   = v;
+
+                    if(u->g - u->lmc > epsilon)
+                        verrifyQueue(u);
+                }
+            }
+        }
+    }
+        
+
+    void RRTx::reduceInconsist()
+    {
+        while(  !queue.empty() &&
+                (queue.top()->key < vbot->key ||
+                abs(vbot->lmc - vbot->g) > 0.00001) ||
+                vbot->g == infinity ||
+                queueContains(vbot))
+        {
+
+            //Take first Node from queue and remove it
+            Node *v = queue.top();
+            queue.pop();
+
+            if(v->g - v->lmc > epsilon)
+            {
+                updateLMC(v);
+                rewireNeighbors(v);
+            }
+
+            v->g = v->lmc;
+        }
+    }
+
+    void RRTx::updateLMC(Node *v)
+    {
+        cullNeighbors(v);
+        Node *p = v->parent;
+
+        for(Node *u : outN(*v))
+        {
+            if(u->parent == v)
+                continue;
+
+            double dist = distance(*v, *u) + u->lmc;
+            if(v->lmc > dist)
+            {
+                p       = u;
+                v->lmc  = dist;
+            }
+        }
+
+        v->parent = p;
+    }
+
+	void RRTx::queueInsert(Node *v)
+	 {
+	    updateKey(v); 
+	    hash[v] = queue.push(v);
+	 }
+	 
+	 bool RRTx::queueContains(Node *v)
+	 {
+	    return hash.find(v) != hash.end();
+	 }
+	 
+	 void RRTx::queueUpdate(Node *v)
+	 {
+	    updateKey(v);
+	    queue.update(hash[v]);
+	 }
+	 
+	 void RRTx::queueRemove(Node *v)
+	 {
+	    queue.erase(hash[v]);
+	    hash.erase(v);
+	 }
+
+     void RRTx::updateKey(Node *v)
+     {
+         v->key.k1 = min(v->g, v->lmc);
+         v->key.k2 = v->g;
+     }
+
+     double RRTx::ballRadius()
+     {
+         int    n       = rtree.size() + 1;
+         double term1   = (y / M_PI) * (log(n) / n);
+         double radius  = min( pow(term1, 0.5), maxDist);
+         return radius;
+     }
+
+
 
 };
 

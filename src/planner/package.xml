@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package>
-  <name>global_planner</name>
+  <name>planner</name>
   <version>0.0.0</version>
   <description>The global_planer package</description>
 

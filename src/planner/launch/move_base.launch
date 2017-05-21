@@ -18,7 +18,7 @@
 	<node pkg="stdr_robot" type="robot_handler" name="$(anon robot_spawn)" args="add $(find stdr_resources)/resources/robots/pandora_robot.yaml 1 2 0" />
 
   <!--<include file="$(find stdr_launchers)/launch/rviz.launch" />-->
-  <node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find global_planner)/map.yaml">
+  <node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find planner)/map.yaml">
   <remap from="map" to="map2" />
   </node>
 
@@ -27,14 +27,14 @@
     <remap from="map" to="map2"/>
     <remap from="cmd_vel" to="robot0/cmd_vel" />
     <remap from="odom" to="robot0/odom" />
-    <rosparam file="$(find global_planner)/costmap_common_params.yaml" command="load" ns="global_costmap" />
-    <rosparam file="$(find global_planner)/costmap_common_params.yaml" command="load" ns="local_costmap" />
-    <rosparam file="$(find global_planner)/local_costmap_params.yaml" command="load" />
-    <rosparam file="$(find global_planner)/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find planner)/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find planner)/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find planner)/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find planner)/global_costmap_params.yaml" command="load" />
     <!--<param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>-->
     <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
     <param name="controller_frequency" value="5.0" />
-    <rosparam file="$(find global_planner)/base_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find planner)/base_local_planner_params.yaml" command="load" />
   </node>
 
   <node pkg="dstar_node" type="dstar_node" respawn="false" name="dstar_node" output="screen" />
