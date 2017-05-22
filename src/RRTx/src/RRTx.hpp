@@ -1,14 +1,16 @@
 #ifndef RRTX_HPP
 #define RRTX_HPP
 
-#include <boost/heap/fibonacci_heap.hpp>
 #include <iostream>
+
+#include <boost/heap/fibonacci_heap.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/geometry.hpp>
 #include <boost/geometry/index/rtree.hpp>
 #include <boost/unordered_map.hpp>
-#include <vector>
+
 #include <costmap_2d/costmap_2d.h>
+#include <geometry_msgs/PoseStamped.h>
 
 
 namespace bg = boost::geometry;
@@ -71,7 +73,7 @@ class RRTx
     typedef bg::model::point<double, 2, bg::cs::cartesian> point;
     //typedef bg::model::segment<point> segment;
     typedef bg::model::box<point> box;
-    typedef std::pair<point, Node> Leaf;
+    typedef std::pair<point, Node *> Leaf;
     typedef bgi::rtree<Leaf, bgi::rstar<16> > RTree; 
     typedef std::tuple<Node *, float, bool> NearInfo;
     typedef std::vector<NearInfo > NearInfoVec;
@@ -85,6 +87,12 @@ class RRTx
                             RRTx            (costmap_2d::Costmap2D *costmap);
                             ~RRTx           (){}
         void                setMaxDist      (double max_dist);
+        void                init            (geometry_msgs::PoseStamped start,
+                                             geometry_msgs::PoseStamped goal);
+        void                init            (int sx, int sy, int gx, int gy);
+        void                grow            (unsigned int iteration);
+        Node                rootNode        ();
+
     private:
         
         void                addVertex       (Node *v);
@@ -106,7 +114,10 @@ class RRTx
         void                rewireNeighbors (Node *v);
         void                reduceInconsist ();
         void                updateLMC       (Node *v);
-        double              ballRadius      ();
+        void                updateRadius    ();
+        Node                randomNode      ();
+        bool                isObstacle      (Node v);
+        void                grow            ();
 
         //  Priority Queue related functions
         void                queueInsert     (Node *v);
@@ -139,6 +150,7 @@ class RRTx
         double  y;
 
         Node    *vbot;
+        Node    *goal_;
 
 
 };

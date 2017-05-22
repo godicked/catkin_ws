@@ -1,5 +1,7 @@
 #include "RRTx.hpp"
 #include <math.h>
+#include <ros/ros.h>
+#include <visualization_msgs/Marker.h>
 
 using namespace std;
 using namespace boost;
@@ -148,6 +150,16 @@ namespace rrt
 
         get<2>(near) = true;
         return true;
+    }
+
+    bool RRTx::isObstacle(Node v)
+    {
+        unsigned int mx, my;
+        costmap_->worldToMap(v.x, v.y, mx, my);
+        unsigned char cost = costmap_->getCost(mx, my);
+
+        if(cost > 200)
+            return true;
     }
 
     /*  Algorithm 3: cullNeighbors(v, r)
@@ -326,24 +338,176 @@ namespace rrt
          v->key.k2 = v->g;
      }
 
-     double RRTx::ballRadius()
+     void RRTx::updateRadius()
      {
          int    n       = rtree.size() + 1;
          double term1   = (y / M_PI) * (log(n) / n);
-         double radius  = min( pow(term1, 0.5), maxDist);
-         return radius;
+         radius  = min( pow(term1, 0.5), maxDist);
      }
 
 
+     Node RRTx::randomNode()
+     {
+         Node node;
+         
+         node.x = rand() % costmap_->getSizeInCellsX();
+         node.y = rand() % costmap_->getSizeInCellsY();
+         
+         return node;
+     }
+
+     Node RRTx::rootNode()
+     {
+         cout << "root node" << endl;
+         return *goal_;
+     }
+
+     void RRTx::grow()
+     {
+         updateRadius();
+
+         Node v         = randomNode();
+         Node *vnearest = nearest(v);
+
+         if(distance(v, *vnearest) > maxDist)
+             v = saturate(v, *vnearest);
+
+         if(!isObstacle(v))
+             extend(&v);
+
+         if(v.parent != nullptr)
+         {
+             rewireNeighbors(&v);
+             reduceInconsist();
+         }
+     }
+
+     void RRTx::grow(unsigned int iteration)
+     {
+         for(int i = 0; i < iteration; i++)
+             grow();
+     }
+
+     void RRTx::init(int sx, int sy, int gx, int gy)
+     {
+         rtree.clear();
+         
+         Node start;
+         start.x = sx;
+         start.y = sy;
+
+         Node goal;
+         goal.x     = gx;
+         goal.y     = gy;
+         goal.g     = 0;
+         goal.lmc   = 0;
+
+         vbot   = &start;
+         goal_  = &goal;
+
+         addVertex(goal_);
+
+     }
+
+     void RRTx::setMaxDist(double dist)
+     {
+         maxDist = dist;
+     }
 
 };
 
-int main()
+void recursive_fill(visualization_msgs::Marker &points, visualization_msgs::Marker &lines, rrt::Node node)
 {
-    cout << "test " << endl;
-    return 1;
+    geometry_msgs::Point p;
+    p.x = node.x;
+    p.y = node.y;
+    p.z = 1;
+
+    points.points.push_back(p);
+
+
+    for(auto child : node.childs)
+    {
+        geometry_msgs::Point pChild;
+        pChild.x = child->x;
+        pChild.y = child->y;
+        pChild.z = 1;
+
+        lines.points.push_back(p);
+        lines.points.push_back(pChild);
+
+        recursive_fill(points, lines, *child);
+    }
 }
 
+void fillmarker(visualization_msgs::Marker &points, visualization_msgs::Marker &lines, rrt::Node rootNode)
+{
+    points.header.frame_id = lines.header.frame_id = "/map";
+    points.header.stamp = lines.header.stamp = ros::Time::now();
+    points.ns = lines.ns = "rrtx";
+
+    points.pose.orientation.w = lines.pose.orientation.w = 1.0;
+
+    points.id = 0;
+    lines.id = 0;
+
+    points.type = visualization_msgs::Marker::POINTS;
+    lines.type = visualization_msgs::Marker::LINE_LIST;
+
+    points.scale.x = 0.1;
+    points.scale.y = 0.1;
+
+    lines.scale.x = 0.1;
+
+    points.color.a = 1;
+    points.color.b = 1;
+
+    lines.color.a = 1;
+    lines.color.g = 1;
+
+    recursive_fill(points, lines, rootNode);
+
+}
+
+int main(int argc, char **argv)
+{
+    ros::init(argc, argv, "RRTx");
+    ros::NodeHandle n;
+    ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("rrtx_viz", 10);
+
+    costmap_2d::Costmap2D costmap(100, 100, 0.1, 0, 0);
+
+
+
+    rrt::RRTx rrt(&costmap);
+    rrt.setMaxDist(0.3);
+    rrt.init(2,2, 5,7); 
+    rrt.grow(10);
+
+    cout << "Get root node ... " << endl;
+    rrt::Node rootNode = rrt.rootNode();
+    cout << "test" << endl;
+    cout << "root Node: " << rootNode.x << " " << rootNode.y << endl;
+
+
+
+    visualization_msgs::Marker points, lines;
+    fillmarker(points, lines, rootNode);
+
+    ros::Rate rate(200);
+
+    while(ros::ok())
+    {
+        marker_pub.publish(points);
+        marker_pub.publish(lines);
+
+        rate.sleep();
+    }
+
+    
+
+    return 0;
+}
 
 
 

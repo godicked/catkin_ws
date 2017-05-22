@@ -1,0 +1,6 @@
+<launch>
+  <master auto="start"/>
+
+  <node pkg="RRTx" type="rrtx_lib" respawn="false" name="rrtx" output="screen" />
+
+</launch>

@@ -1,25 +1,19 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(RRTx)
+project(viz)
 
 ## Add support for C++11, supported in ROS Kinetic and newer
-#add_definitions(-std=c++11)
-#set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 add_definitions(-std=c++11)
-
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
-  nav_core
   roscpp
-  std_msgs
-  costmap_2d
+  visualization_msgs
 )
 
 ## System dependencies are found with CMake's conventions
-find_package(Boost REQUIRED COMPONENTS system)
+# find_package(Boost REQUIRED COMPONENTS system)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -75,7 +69,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 ## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   geometry_msgs#   std_msgs
+#   visualization_msgs
 # )
 
 ################################################
@@ -109,8 +103,8 @@ find_package(Boost REQUIRED COMPONENTS system)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES RRTx
-#  CATKIN_DEPENDS geometry_msgs nav_core roscpp std_msgs
+#  LIBRARIES viz
+#  CATKIN_DEPENDS roscpp visualization_msgs
 #  DEPENDS system_lib
 )
 
@@ -127,7 +121,7 @@ include_directories(
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/RRTx.cpp
+#   src/${PROJECT_NAME}/viz.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -138,7 +132,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/RRTx_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/viz_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -190,20 +184,17 @@ include_directories(
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
 
+add_executable(point src/main.cpp)
+target_link_libraries(point ${catkin_LIBRARIES})
 #############
 ## Testing ##
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_RRTx.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_viz.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
-
-add_executable(rrtx_lib src/RRTx.cpp)
-target_link_libraries(rrtx_lib ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} boost_system)
-
-
