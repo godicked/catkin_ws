@@ -1,6 +1,5 @@
 <launch>
   <master auto="start"/>
-
-  <node pkg="RRTx" type="rrtx_lib" respawn="false" name="rrtx" output="screen" />
-
+  <node pkg="RRTx" type="rrtx_lib"  respawn="false" name="rrtx" output="screen" launch-prefix="xterm -e gdb --args"/>
+  <node pkg="rviz" type="rviz" name="rviz" />
 </launch>

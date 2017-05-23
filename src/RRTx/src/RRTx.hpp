@@ -8,6 +8,7 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/index/rtree.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/container/stable_vector.hpp>
 
 #include <costmap_2d/costmap_2d.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -80,10 +81,14 @@ class RRTx
     typedef boost::heap::fibonacci_heap<Node *, 
             boost::heap::compare<node_compare> > Queue;
     typedef Queue::handle_type handle_t;
-    typedef boost::unordered_map<Node *, handle_t> Hash; 
+    typedef boost::unordered_map<Node *, handle_t> Hash;
 
     public:
-                            RRTx            (){}
+
+        typedef boost::container::stable_vector<Node> NodeContainer;
+    
+        
+        RRTx                ()              {}
                             RRTx            (costmap_2d::Costmap2D *costmap);
                             ~RRTx           (){}
         void                setMaxDist      (double max_dist);
@@ -92,6 +97,7 @@ class RRTx
         void                init            (int sx, int sy, int gx, int gy);
         void                grow            (unsigned int iteration);
         Node                rootNode        ();
+        NodeContainer       getContainer   ();
 
     private:
         
@@ -127,6 +133,9 @@ class RRTx
         void                updateKey       (Node *v);
 
         //  Member variables
+
+        //  Container to hold the Node structure
+        NodeContainer nodeContainer;
 
         //  R* Tree for efficient spacial k nearest neighbors (KNN) search
         //  and helps for the radius search
