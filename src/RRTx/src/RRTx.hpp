@@ -155,7 +155,7 @@ class RRTx
         double maxDist;
 
 
-        double  epsilon = 0.2;
+        double  epsilon = 0.05;
         double  radius;
         double  y;
 

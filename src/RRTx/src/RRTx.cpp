@@ -11,7 +11,7 @@ using namespace boost;
 
 const double infinity = numeric_limits<double>::infinity();
 
-boost::random::mt19937 gen;
+boost::random::mt19937 gen(time(0));
 
 void removeN(list<rrt::Node *> *list, rrt::Node *u)
 {
@@ -312,6 +312,7 @@ namespace rrt
             double dist = distance(*v, *u) + u->lmc;
             if(v->lmc > dist)
             {
+                v->lmc  = dist;
                 p       = u;
             }
         }
@@ -424,8 +425,11 @@ namespace rrt
 
      void RRTx::grow(unsigned int iteration)
      {
+         ros::Time t = ros::Time::now();
          for(int i = 0; i < iteration; i++)
              grow();
+         ros::Duration d = ros::Time::now() - t;
+         cout << d.toSec() << endl;
      }
 
      void RRTx::init(double sx, double sy, double gx, double gy)
@@ -451,6 +455,7 @@ namespace rrt
          addVertex(goal_);
 
          srand(time(0));
+
 
      }
 
@@ -570,7 +575,7 @@ int main(int argc, char **argv)
     rrt::RRTx rrt(&costmap);
     rrt.setMaxDist(5);
     rrt.init(20,20, 45,70); 
-    rrt.grow(4000);
+    rrt.grow(3000);
 
     rrt::Node node;
     cout << node.g << endl;
@@ -582,8 +587,9 @@ int main(int argc, char **argv)
         //cout << "loop" << endl;
         rrt::Node rootNode = rrt.rootNode();
         NodeContainer container = rrt.getContainer(); 
-        visualization_msgs::Marker goal, points, lines;
+        visualization_msgs::Marker goal, points, lines, obstacle;
         fillmarker(goal, points, lines, rootNode, container);
+
         
         marker_pub.publish(points);
         marker_pub.publish(lines);
