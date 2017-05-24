@@ -40,7 +40,6 @@ namespace rrt
     
     void RRTx::addVertex(Node *v)
     {
-        //cout << "addVertex" << endl;
         point v_point(v->x, v->y);
         rtree.insert(make_pair(v_point, v));
     }
@@ -77,20 +76,16 @@ namespace rrt
 
         NearInfoVec nodes;
         rtree.query(bgi::intersects(b), back_inserter(search));
-        //cout << "found: " << search.size() << " near" << endl;
         for(int i = 0; i < search.size(); i++)
         {
             Node *node  = search[i].second;
             float dist  = distance(*node, v);
 
-            //cout << dist  << " " << radius << endl;
             if(dist > radius)
             {
-                //cout << "wrtf" << endl;
                 continue;
             }
 
-            //cout << "push_back" << endl;
             nodes.push_back(make_tuple(node, dist, false));
         }
 
@@ -121,14 +116,11 @@ namespace rrt
 
     void RRTx::findParent(Node *v, NearInfoVec &vnear)
     {
-        //cout << vnear.size() << endl;
         for(auto near : vnear)
         {
-            //cout << "get" << endl;
             double dist = get<1>(near);
             Node *u     = get<0>(near);
             
-            //cout<< "trajectory exist" << endl;
             if(v->lmc > dist + u->lmc &&
                trajectoryExist(*v, near))
             {
@@ -137,7 +129,6 @@ namespace rrt
                 
             }
         }
-        //cout << "end" << endl;
         
     }
 
@@ -150,12 +141,12 @@ namespace rrt
         double dy = u.y - v.y;
 
         double resolution = costmap_->getResolution();
-        for(double i = 0; i < dist; i += resolution)
+        for(double i = 0; i < dist - resolution; i += resolution)
         {
-            double wx = v.x + dx * i;
-            double wy = v.y + dy * i;
-
-            unsigned int mx, my;
+            double wx = v.x + dx * (i / dist);
+            double wy = v.y + dy * (i / dist);
+           
+           unsigned int mx, my;
             costmap_->worldToMap(wx, wy, mx, my);
             unsigned char cost = costmap_->getCost(mx, my);
             
@@ -256,6 +247,7 @@ namespace rrt
 
     void RRTx::verrifyQueue(Node *v)
     {
+        //cout << "verify queue" << endl;
         if(queueContains(v))
             queueUpdate(v);
         else
@@ -271,7 +263,6 @@ namespace rrt
             {
                 if(u == v->parent)
                     continue;
-
                 double dist = distance(*u, *v) + v->lmc;
                 if(u->lmc > dist)
                 {
@@ -290,14 +281,13 @@ namespace rrt
     {
         while(  !queue.empty() &&
                 (queue.top()->key < vbot->key ||
-                abs(vbot->lmc - vbot->g) > 0.00001) ||
+                abs(vbot->lmc - vbot->g) > 0.00001 ||
                 vbot->g == infinity ||
-                queueContains(vbot))
+                queueContains(vbot)))
         {
 
             //Take first Node from queue and remove it
-            Node *v = queue.top();
-            queue.pop();
+            Node *v = queuePop();
 
             if(v->g - v->lmc > epsilon)
             {
@@ -316,14 +306,13 @@ namespace rrt
 
         for(Node *u : outN(*v))
         {
-            if(u->parent == v)
+            if(u->parent != v)
                 continue;
 
             double dist = distance(*v, *u) + u->lmc;
             if(v->lmc > dist)
             {
                 p       = u;
-                v->lmc  = dist;
             }
         }
 
@@ -353,6 +342,14 @@ namespace rrt
 	    hash.erase(v);
 	 }
 
+     Node *RRTx::queuePop()
+     {
+         Node *toRemove = queue.top();
+         hash.erase(toRemove);
+         queue.pop();
+         return toRemove;
+     }
+
      void RRTx::updateKey(Node *v)
      {
          v->key.k1 = min(v->g, v->lmc);
@@ -365,7 +362,7 @@ namespace rrt
          double term1   = (y / M_PI) * (log(n) / n);
          radius  = min( pow(term1, 0.5), maxDist);
 
-         cout << "new radius: " << radius << endl;
+         //cout << "new radius: " << radius << endl;
      }
 
 
@@ -373,8 +370,8 @@ namespace rrt
      {
          Node node;
          
-         boost::random::uniform_int_distribution<> xr(0, costmap_->getSizeInCellsX());
-         boost::random::uniform_int_distribution<> yr(0, costmap_->getSizeInCellsY());
+         boost::random::uniform_int_distribution<> xr(0, costmap_->getSizeInCellsX() -1);
+         boost::random::uniform_int_distribution<> yr(0, costmap_->getSizeInCellsY() -1);
 
          int x = xr(gen);
          int y = yr(gen);
@@ -397,37 +394,29 @@ namespace rrt
 
      void RRTx::grow()
      {
-         //cout << "start grow.. ";
          
          updateRadius();
 
          Node new_v     = randomNode();
          Node *vnearest = nearest(new_v);
 
-         if(distance(new_v, *vnearest) > maxDist)
+         if(distance(new_v, *vnearest) > radius)
              new_v = saturate(new_v, *vnearest);
 
 
-         //cout << "grow.." << endl;
-        
          if(!isObstacle(new_v))
          {
              nodeContainer.push_back(new_v);
              Node *v = &nodeContainer.back();
            
-             //cout << "extend" << endl;
              extend(v);
-             //cout << "end" << endl;
              if(v->parent != nullptr)
              {
-                //cout << "parent != null" << endl;
                 rewireNeighbors(v);
                 reduceInconsist();
              }
              else
              {
-                 cout << "parent == null" << endl;
-                 //v = nullptr;
                  nodeContainer.pop_back();
              }
          }
@@ -439,7 +428,7 @@ namespace rrt
              grow();
      }
 
-     void RRTx::init(int sx, int sy, int gx, int gy)
+     void RRTx::init(double sx, double sy, double gx, double gy)
      {
          rtree.clear();
          
@@ -453,8 +442,10 @@ namespace rrt
          goal.g     = 0;
          goal.lmc   = 0;
 
-         vbot   = &start;
          
+         nodeContainer.push_back(start);
+         vbot = &nodeContainer.back();
+
          nodeContainer.push_back(goal);
          goal_ = &nodeContainer.back();
          addVertex(goal_);
@@ -499,32 +490,45 @@ void recursive_fill(visualization_msgs::Marker &points, visualization_msgs::Mark
     }
 }
 
-void fillmarker(visualization_msgs::Marker &points, visualization_msgs::Marker &lines, NodeContainer container)
+void fillmarker(visualization_msgs::Marker &goal, visualization_msgs::Marker &points, visualization_msgs::Marker &lines, rrt::Node rootNode, NodeContainer container)
 {
-    points.header.frame_id = lines.header.frame_id = "/map";
-    points.header.stamp = lines.header.stamp = ros::Time::now();
-    points.ns = lines.ns = "rrtx";
+    goal.header.frame_id = points.header.frame_id = lines.header.frame_id = "/map";
+    goal.header.stamp = points.header.stamp = lines.header.stamp = ros::Time::now();
+    goal.ns = points.ns = lines.ns = "rrtx";
 
-    points.pose.orientation.w = lines.pose.orientation.w = 1.0;
-    points.action = lines.action = visualization_msgs::Marker::ADD;
+    goal.pose.orientation.w = points.pose.orientation.w = lines.pose.orientation.w = 1.0;
+    goal.action = points.action = lines.action = visualization_msgs::Marker::ADD;
 
 
     points.id = 0;
     lines.id = 1;
+    goal.id = 2;
 
-    points.type = visualization_msgs::Marker::POINTS;
+    goal.type = points.type = visualization_msgs::Marker::POINTS;
     lines.type = visualization_msgs::Marker::LINE_LIST;
 
-    points.scale.x = 0.05;
-    points.scale.y = 0.05;
+    points.scale.x = 0.5;
+    points.scale.y = 0.5;
 
-    lines.scale.x = 0.01;
+    goal.scale.x = 1;
+    goal.scale.y = 1;
+
+    lines.scale.x = 0.1;
 
     points.color.a = 1;
     points.color.b = 1;
 
+    goal.color.a = 1;
+    goal.color.r = 1;
+
     lines.color.a = 1;
     lines.color.g = 1;
+
+    geometry_msgs::Point pgoal;
+    pgoal.x = rootNode.x;
+    pgoal.y = rootNode.y;
+    pgoal.z = 1;
+    goal.points.push_back(pgoal);
 
     //recursive_fill(points, lines, rootNode);
 
@@ -554,29 +558,36 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
     ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("rrtx_viz", 10);
 
-    costmap_2d::Costmap2D costmap(100, 100, 0.1, 0, 0);
-
+    costmap_2d::Costmap2D costmap(1000, 1000, 0.1, 0, 0);
+    
+    for(int i = 0; i < 200; i++) { for(int j = 0; j < 400; j++) {
+        costmap.setCost(i + 200, j + 100, 255);
+        costmap.setCost(j + 500, i + 790, 255);
+        costmap.setCost(i + 600, j + 300, 255);
+    }}
 
 
     rrt::RRTx rrt(&costmap);
-    rrt.setMaxDist(1);
-    rrt.init(2,2, 5,7); 
-    rrt.grow(1);
+    rrt.setMaxDist(5);
+    rrt.init(20,20, 45,70); 
+    rrt.grow(4000);
 
-    rrt::Node rootNode = rrt.rootNode();
+    rrt::Node node;
+    cout << node.g << endl;
     
-    ros::Rate rate(40);
 
+    ros::Rate rate(1);
     while(ros::ok())
     {
         //cout << "loop" << endl;
-        rrt.grow(1);
+        rrt::Node rootNode = rrt.rootNode();
         NodeContainer container = rrt.getContainer(); 
-        visualization_msgs::Marker points, lines;
-        fillmarker(points, lines, container);
+        visualization_msgs::Marker goal, points, lines;
+        fillmarker(goal, points, lines, rootNode, container);
         
         marker_pub.publish(points);
         marker_pub.publish(lines);
+        marker_pub.publish(goal);
 
         rate.sleep();
     }

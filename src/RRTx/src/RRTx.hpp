@@ -26,8 +26,8 @@ namespace rrt
 
 struct NodeKey
 {
-  double k1;
-  double k2;
+  double k1 = std::numeric_limits<double>::infinity();
+  double k2 = std::numeric_limits<double>::infinity();
 
   bool operator<(const NodeKey key) const
   {
@@ -47,7 +47,7 @@ struct Node
 
     NodeKey key;
 
-    double  g       = std::numeric_limits<double>::infinity();
+    double  g       = std::numeric_limits<double>::infinity(); 
     double  lmc     = std::numeric_limits<double>::infinity();
 
     double  x;
@@ -94,7 +94,7 @@ class RRTx
         void                setMaxDist      (double max_dist);
         void                init            (geometry_msgs::PoseStamped start,
                                              geometry_msgs::PoseStamped goal);
-        void                init            (int sx, int sy, int gx, int gy);
+        void                init            (double sx, double sy, double gx, double gy);
         void                grow            (unsigned int iteration);
         Node                rootNode        ();
         NodeContainer       getContainer   ();
@@ -131,6 +131,7 @@ class RRTx
         void                queueRemove     (Node *v);
         bool                queueContains   (Node *v);
         void                updateKey       (Node *v);
+        Node               *queuePop        ();
 
         //  Member variables
 
@@ -154,7 +155,7 @@ class RRTx
         double maxDist;
 
 
-        double  epsilon;
+        double  epsilon = 0.2;
         double  radius;
         double  y;
 
