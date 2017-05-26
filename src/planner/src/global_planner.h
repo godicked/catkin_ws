@@ -19,7 +19,7 @@ using std::string;
 #ifndef GLOBAL_PLANNER_CPP
 #define GLOBAL_PLANNER_CPP
 
-namespace global_planner
+namespace dynamic_planner
 {
 
 class GlobalPlanner : public nav_core::BaseGlobalPlanner

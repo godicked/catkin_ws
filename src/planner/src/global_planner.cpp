@@ -1,9 +1,10 @@
 #include <pluginlib/class_list_macros.h>
 #include "global_planner.h"
 #include "dstar.hpp"
+#include <tf/tf.h>
 
 //register this planner as a BaseGlobalPlanner plugin
-PLUGINLIB_EXPORT_CLASS(global_planner::GlobalPlanner, nav_core::BaseGlobalPlanner)
+PLUGINLIB_EXPORT_CLASS(dynamic_planner::GlobalPlanner, nav_core::BaseGlobalPlanner)
 
 using namespace std;
 using namespace dstar;
@@ -22,7 +23,7 @@ timespec diff(timespec start, timespec end)
 }
 
 
-namespace global_planner
+namespace dynamic_planner
 {
 
 GlobalPlanner::GlobalPlanner()
@@ -55,7 +56,13 @@ void GlobalPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costm
 
 bool GlobalPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
 {
+
   ROS_INFO("make plan");
+
+  tf::Pose pose;
+  tf::poseMsgToTF(goal.pose, pose);
+  double angle = tf::getYaw(pose.getRotation());
+  ROS_INFO("goal rotation: %.2f", angle);
   ros::ServiceClient client = n->serviceClient<nav_msgs::GetPlan>("/get_plan");
   nav_msgs::GetPlan getPlan;
   getPlan.request.start = start;

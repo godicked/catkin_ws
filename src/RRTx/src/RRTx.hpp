@@ -53,6 +53,8 @@ struct Node
     double  x;
     double  y;
 
+    double yaw = 0;
+
     std::list<Node *> inNz;
     std::list<Node *> outNz;
     
@@ -92,12 +94,15 @@ class RRTx
                             RRTx            (costmap_2d::Costmap2D *costmap);
                             ~RRTx           (){}
         void                setMaxDist      (double max_dist);
+        void                setMaxYaw       (double yaw);
         void                init            (geometry_msgs::PoseStamped start,
                                              geometry_msgs::PoseStamped goal);
         void                init            (double sx, double sy, double gx, double gy);
         void                grow            (unsigned int iteration);
         Node                rootNode        ();
-        NodeContainer       getContainer   ();
+        Node                startNode       ();
+        NodeContainer       getContainer    ();
+        void                test            ();
 
     private:
         
@@ -124,6 +129,7 @@ class RRTx
         Node                randomNode      ();
         bool                isObstacle      (Node v);
         void                grow            ();
+        double              getYaw          (Node v, Node u);
 
         //  Priority Queue related functions
         void                queueInsert     (Node *v);
@@ -132,6 +138,7 @@ class RRTx
         bool                queueContains   (Node *v);
         void                updateKey       (Node *v);
         Node               *queuePop        ();
+
 
         //  Member variables
 
@@ -153,13 +160,15 @@ class RRTx
 
         //  max distance between 2 a new point and its nearest neighbor
         double maxDist;
+        double maxYaw;
 
 
         double  epsilon = 0.05;
         double  radius;
         double  y;
 
-        Node    *vbot;
+        
+        Node    *vbot = nullptr;
         Node    *goal_;
 
 

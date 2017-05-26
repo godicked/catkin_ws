@@ -32,8 +32,10 @@
     <rosparam file="$(find planner)/local_costmap_params.yaml" command="load" />
     <rosparam file="$(find planner)/global_costmap_params.yaml" command="load" />
     <!--<param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>-->
-    <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+    <!--<param name="base_global_planner" value="global_planner/GlobalPlanner"/>-->
+    <param name="base_global_planner" value="dynamic_planner/GlobalPlanner"/>
     <param name="controller_frequency" value="5.0" />
+    <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" />
     <rosparam file="$(find planner)/base_local_planner_params.yaml" command="load" />
   </node>
 

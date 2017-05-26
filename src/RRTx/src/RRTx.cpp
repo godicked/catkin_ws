@@ -10,8 +10,13 @@ using namespace std;
 using namespace boost;
 
 const double infinity = numeric_limits<double>::infinity();
+const double max_double = numeric_limits<double>::max();
+boost::random::mt19937 gen;
 
-boost::random::mt19937 gen(time(0));
+template <typename T> int sgn(T val) 
+{
+    return (T(0) < val) - (val < T(0));
+}
 
 void removeN(list<rrt::Node *> *list, rrt::Node *u)
 {
@@ -41,6 +46,7 @@ namespace rrt
     void RRTx::addVertex(Node *v)
     {
         point v_point(v->x, v->y);
+        //cout << "Add vertex with yaw : " << v->yaw << endl;
         rtree.insert(make_pair(v_point, v));
     }
 
@@ -62,8 +68,11 @@ namespace rrt
         vector<Leaf> result;
         point p(v.x, v.y);
 
-        rtree.query(bgi::nearest(p, 1), back_inserter(result));
-        return result[0].second; 
+        rtree.query(bgi::nearest(p, 2), back_inserter(result));
+
+        if(result[0].second != vbot)
+            return result[0].second;
+        return result[1].second;
     }
 
     RRTx::NearInfoVec RRTx::near(Node v)
@@ -100,17 +109,76 @@ namespace rrt
         return sqrt(dx2 + dy2);
     }
 
+    void RRTx::setMaxYaw(double yaw)
+    {
+        maxYaw = yaw;
+    }
+
+
+    void RRTx::test()
+    {
+        Node a, b;
+
+        a.x = 1; a.y = 2;
+        b.x = 2; b.y = 1;
+
+        b = saturate(b, a);
+        //cout << getYaw(b, a) * 180.0 / M_PI << endl;
+        cout << b.x << ": " << b.y << " yaw: " << b.yaw << endl;
+
+        cout << "cos: " << cos(M_PI + 0.3) << " sin: " << sin(M_PI + 0.3) << endl; 
+    }
+
+    double RRTx::getYaw(Node v, Node u)
+    {
+        double x1, y1, x2, y2;
+
+ 
+        x1 = cos(u.yaw);
+        y1 = sin(u.yaw);
+
+        x2 = u.x - v.x;
+        y2 = u.y - v.y;
+
+        double dot = x1*x2 + y1*y2;
+        double det = x1*y2 - x2*y1;
+
+        double yaw = atan2(det, dot);
+        //cout << "Yaw: " << yaw + u.yaw<< endl;
+
+        return yaw + u.yaw;
+    }
 
     Node RRTx::saturate(Node v, Node u)
     {
+        double yaw = getYaw(v, u);
         double dist = distance(v, u);
 
-        double dx = (v.x - u.x) / dist;
-        double dy = (v.y - u.y) / dist;
+        double new_dist = min(radius - 0.001, dist);
 
-        v.x = u.x + dx * (radius - 0.001);
-        v.y = u.y + dy * (radius - 0.001);
+        if( abs((yaw - u.yaw) / new_dist) >  maxYaw)
+        {
+            yaw = sgn(yaw) * maxYaw * new_dist;
+            v.x = u.x + (cos(M_PI + yaw) * new_dist);
+            v.y = u.y + (sin(M_PI + yaw) * new_dist);
+        }
+        else if (new_dist != dist)
+        {
+            double dx = (v.x - u.x) / dist;
+            double dy = (v.y - u.y) / dist;
 
+            v.x = u.x + dx * (new_dist);
+            v.y = u.y + dy * (new_dist);
+        }
+
+        v.yaw = yaw;
+        if(v.yaw <= -M_PI)
+            v.yaw += 2*M_PI;
+        if(v.yaw > M_PI)
+            v.yaw -= 2*M_PI;
+
+        //cout << "New Yaw: " << v.yaw << endl;
+        
         return v;
     }
 
@@ -137,6 +205,11 @@ namespace rrt
         Node u      = *get<0>(near);
         double dist = get<1>(near);
 
+        if(abs(getYaw(v, u) - v.yaw) > maxYaw * dist)
+        {
+            return false;
+        }
+
         double dx = u.x - v.x;
         double dy = u.y - v.y;
 
@@ -151,7 +224,9 @@ namespace rrt
             unsigned char cost = costmap_->getCost(mx, my);
             
             if(cost > 200)
+            {
                 return false;
+            }
         }
 
         get<2>(near) = true;
@@ -162,6 +237,11 @@ namespace rrt
     {
         unsigned int mx, my;
         costmap_->worldToMap(v.x, v.y, mx, my);
+
+        if(mx >= costmap_->getSizeInCellsX() ||
+           my >= costmap_->getSizeInCellsY())
+            return true;
+
         unsigned char cost = costmap_->getCost(mx, my);
 
         if(cost > 200)
@@ -206,7 +286,6 @@ namespace rrt
         //cout << "near" << endl;
         NearInfoVec vnear = near(*v);
         //cout << "findParent" << endl;
-        //cout << "aaahhhh" << endl;
         findParent(v, vnear);
         if(v->parent == nullptr)
             return;
@@ -223,6 +302,8 @@ namespace rrt
             // near = (Node *u, float dist, bool trajExist)
             Node *u         = get<0>(near);
             bool trajExist  = get<2>(near);
+
+            
 
             if(trajExist)
             {
@@ -312,7 +393,7 @@ namespace rrt
             double dist = distance(*v, *u) + u->lmc;
             if(v->lmc > dist)
             {
-                v->lmc  = dist;
+                //v->lmc  = dist;
                 p       = u;
             }
         }
@@ -359,7 +440,7 @@ namespace rrt
 
      void RRTx::updateRadius()
      {
-         int    n       = rtree.size() + 1;
+         int    n       = rtree.size();
          double term1   = (y / M_PI) * (log(n) / n);
          radius  = min( pow(term1, 0.5), maxDist);
 
@@ -388,6 +469,11 @@ namespace rrt
          return *goal_;
      }
 
+     Node RRTx::startNode()
+     {
+         return *vbot;
+     }
+
      RRTx::NodeContainer RRTx::getContainer()
      {
          return nodeContainer;
@@ -401,9 +487,7 @@ namespace rrt
          Node new_v     = randomNode();
          Node *vnearest = nearest(new_v);
 
-         if(distance(new_v, *vnearest) > radius)
-             new_v = saturate(new_v, *vnearest);
-
+         new_v = saturate(new_v, *vnearest);
 
          if(!isObstacle(new_v))
          {
@@ -429,7 +513,15 @@ namespace rrt
          for(int i = 0; i < iteration; i++)
              grow();
          ros::Duration d = ros::Time::now() - t;
-         cout << d.toSec() << endl;
+         cout << "time elaplsed: " <<  d.toSec() << endl;
+         cout << "Node in Container: " << nodeContainer.size() << endl;
+
+         Node *v = vbot;
+         while(v->parent != nullptr)
+         {
+             cout << v->yaw << endl;
+             v = v->parent;
+         }
      }
 
      void RRTx::init(double sx, double sy, double gx, double gy)
@@ -439,16 +531,16 @@ namespace rrt
          Node start;
          start.x = sx;
          start.y = sy;
-
+         
          Node goal;
          goal.x     = gx;
          goal.y     = gy;
          goal.g     = 0;
          goal.lmc   = 0;
 
-         
          nodeContainer.push_back(start);
          vbot = &nodeContainer.back();
+         addVertex(vbot);
 
          nodeContainer.push_back(goal);
          goal_ = &nodeContainer.back();
@@ -474,12 +566,15 @@ typedef rrt::RRTx::NodeContainer NodeContainer;
 
 void recursive_fill(visualization_msgs::Marker &points, visualization_msgs::Marker &lines, rrt::Node node)
 {
-    geometry_msgs::Point p;
+    geometry_msgs::Point p, p2;
     p.x = node.x;
     p.y = node.y;
-    p.z = 1;
+
+    p2.x = p.x + cos(node.yaw) * 0.5;
+    p2.y = p.y + sin(node.yaw) * 0.5;
 
     points.points.push_back(p);
+    points.points.push_back(p2);
 
     for(auto child : node.childs)
     {
@@ -495,7 +590,7 @@ void recursive_fill(visualization_msgs::Marker &points, visualization_msgs::Mark
     }
 }
 
-void fillmarker(visualization_msgs::Marker &goal, visualization_msgs::Marker &points, visualization_msgs::Marker &lines, rrt::Node rootNode, NodeContainer container)
+void fillmarker(visualization_msgs::Marker &goal, visualization_msgs::Marker &points, visualization_msgs::Marker &lines, rrt::Node rootNode, rrt::Node startNode, NodeContainer container)
 {
     goal.header.frame_id = points.header.frame_id = lines.header.frame_id = "/map";
     goal.header.stamp = points.header.stamp = lines.header.stamp = ros::Time::now();
@@ -512,13 +607,13 @@ void fillmarker(visualization_msgs::Marker &goal, visualization_msgs::Marker &po
     goal.type = points.type = visualization_msgs::Marker::POINTS;
     lines.type = visualization_msgs::Marker::LINE_LIST;
 
-    points.scale.x = 0.5;
-    points.scale.y = 0.5;
+    points.scale.x = 0.1;
+    points.scale.y = 0.1;
 
     goal.scale.x = 1;
     goal.scale.y = 1;
 
-    lines.scale.x = 0.1;
+    lines.scale.x = 0.05;
 
     points.color.a = 1;
     points.color.b = 1;
@@ -529,20 +624,49 @@ void fillmarker(visualization_msgs::Marker &goal, visualization_msgs::Marker &po
     lines.color.a = 1;
     lines.color.g = 1;
 
-    geometry_msgs::Point pgoal;
+    geometry_msgs::Point pgoal, pstart;
     pgoal.x = rootNode.x;
     pgoal.y = rootNode.y;
     pgoal.z = 1;
     goal.points.push_back(pgoal);
+    pstart.x = startNode.x;
+    pstart.y = startNode.y;
+    pstart.z = 1;
+    goal.points.push_back(pstart);
+    
 
     //recursive_fill(points, lines, rootNode);
 
-    for(auto node : container)
+/*     for(auto node : container) */
+/*     { */
+/*         geometry_msgs::Point p,p2; */
+/*         p.x = node.x; */
+/*         p.y = node.y; */
+
+/*         p2.x = p.x + cos(node.yaw) * 0.5; */
+/*         p2.y = p.y + sin(node.yaw) * 0.5; */
+
+
+/*         points.points.push_back(p); */
+/*         //points.points.push_back(p2); */
+
+/*         if(node.parent == nullptr) */
+/*             continue; */
+
+/*         lines.points.push_back(p); */
+/*         p.x = node.parent->x; */
+/*         p.y = node.parent->y; */
+/*         lines.points.push_back(p); */
+/*     } */
+
+    auto node = startNode;
+    do
     {
+        //cout << "Yaw: " << node.yaw / 180 * M_PI << endl;
         geometry_msgs::Point p;
         p.x = node.x;
         p.y = node.y;
-
+        
         points.points.push_back(p);
 
         if(node.parent == nullptr)
@@ -552,8 +676,11 @@ void fillmarker(visualization_msgs::Marker &goal, visualization_msgs::Marker &po
         p.x = node.parent->x;
         p.y = node.parent->y;
         lines.points.push_back(p);
-    }
 
+        node = *node.parent;
+
+    } while(node.parent != nullptr);
+    
 }
 
 
@@ -573,22 +700,22 @@ int main(int argc, char **argv)
 
 
     rrt::RRTx rrt(&costmap);
-    rrt.setMaxDist(5);
-    rrt.init(20,20, 45,70); 
-    rrt.grow(3000);
+    rrt.setMaxDist(1);
+    rrt.setMaxYaw(0.3);
+    rrt.init(70,15, 45,70); 
+    rrt.grow(1000);
 
-    rrt::Node node;
-    cout << node.g << endl;
-    
+    //rrt.test();
 
     ros::Rate rate(1);
     while(ros::ok())
     {
         //cout << "loop" << endl;
         rrt::Node rootNode = rrt.rootNode();
+        rrt::Node startNode = rrt.startNode();
         NodeContainer container = rrt.getContainer(); 
         visualization_msgs::Marker goal, points, lines, obstacle;
-        fillmarker(goal, points, lines, rootNode, container);
+        fillmarker(goal, points, lines, rootNode, startNode, container);
 
         
         marker_pub.publish(points);
