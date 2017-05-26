@@ -1,8 +1,7 @@
 #include "RRTx.hpp"
 #include <math.h>
-#include <ros/ros.h>
-#include <visualization_msgs/Marker.h>
 
+#include <visualization_msgs/Marker.h>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
 
@@ -13,20 +12,7 @@ const double infinity = numeric_limits<double>::infinity();
 
 boost::random::mt19937 gen(time(0));
 
-void removeN(list<rrt::Node *> *list, rrt::Node *u)
-{
-    auto it = list->begin();
-    while(it != list->end())
-    {
-        if(*it == u)
-        {
-            list->erase(it);
-            return;
-        }
 
-        it++;
-    }
-}
 
 
 namespace rrt
@@ -35,6 +21,12 @@ namespace rrt
     RRTx::RRTx(costmap_2d::Costmap2D *costmap)
     {
       costmap_ = costmap;
+
+      marker_pub    = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 10);
+      //path_pub      = nh_.advertise<nav_msgs::Path>("rrt_path", 10);
+
+      nh_.param<string>("map_frame", this->map_frame, "/map");
+
     }
 
     
@@ -44,18 +36,34 @@ namespace rrt
         rtree.insert(make_pair(v_point, v));
     }
 
-    list<Node *> RRTx::inN(Node v)
+    vector<Node *> RRTx::inN(Node v)
     {
-        v.inNz.splice(v.inNz.end(), v.inNr);
-        return v.inNz;
+        vector<Node *> in = v.inNz;
+        in.insert(in.end(), v.inNr.begin(), v.inNr.end());
+        return in;
     }
 
-    list<Node *> RRTx::outN(Node v)
+    vector<Node *> RRTx::outN(Node v)
     {
-        v.outNz.splice(v.outNz.end(), v.outNr);
-        return v.outNz;
+        vector<Node *> out = v.outNz;
+        out.insert(out.end(), v.outNr.begin(), v.outNr.end());
+        return out;
     }
 
+    void RRTx::removeN(vector<rrt::Node *> *vec, rrt::Node *u)
+    {
+        auto it = vec->begin();
+        while (it != vec->end())
+        {
+            if (*it == u)
+            {
+                vec->erase(it);
+                return;
+            }
+
+            it++;
+        }
+    }
 
     Node *RRTx::nearest(Node v)
     {
@@ -280,10 +288,10 @@ namespace rrt
     void RRTx::reduceInconsist()
     {
         while(  !queue.empty() &&
-                (queue.top()->key < vbot->key ||
-                abs(vbot->lmc - vbot->g) > 0.00001 ||
-                vbot->g == infinity ||
-                queueContains(vbot)))
+                (queue.top()->key < vbot_->key ||
+                abs(vbot_->lmc - vbot_->g) > 0.00001 ||
+                vbot_->g == infinity ||
+                queueContains(vbot_)))
         {
 
             //Take first Node from queue and remove it
@@ -312,7 +320,6 @@ namespace rrt
             double dist = distance(*v, *u) + u->lmc;
             if(v->lmc > dist)
             {
-                v->lmc  = dist;
                 p       = u;
             }
         }
@@ -448,14 +455,11 @@ namespace rrt
 
          
          nodeContainer.push_back(start);
-         vbot = &nodeContainer.back();
+         vbot_ = &nodeContainer.back();
 
          nodeContainer.push_back(goal);
          goal_ = &nodeContainer.back();
          addVertex(goal_);
-
-         srand(time(0));
-
 
      }
 
@@ -465,6 +469,116 @@ namespace rrt
          // As defined in RRT* Y >= 2 * dim + (1 + 1/dim) * u(XFree)
          // u = volume, XFree = free space. y > Y since we use total volume of map
          y = 6.0 * costmap_->getSizeInMetersX() * costmap_->getSizeInMetersY();
+     }
+
+     void RRTx::publish(bool path, bool tree)
+     {
+         // Publish Goal
+         visualization_msgs::Marker goal;
+         goal.header.frame_id       = map_frame;
+         goal.header.stamp          = ros::Time::now();
+         goal.ns                    = "rrtx";
+         goal.id                    = 0;
+         goal.action                = visualization_msgs::Marker::ADD;
+         goal.type                  = visualization_msgs::Marker::POINTS;
+         
+         goal.pose.orientation.w    = 1.0;
+         goal.scale.x               = 1;
+         goal.scale.y               = 1;
+         
+         goal.color.a               = 1;
+         goal.color.r               = 1;
+
+         geometry_msgs::Point pgoal;
+         pgoal.x = goal_->x;
+         pgoal.y = goal_->y;
+         pgoal.z = 1;
+         goal.points.push_back(pgoal);
+
+         marker_pub.publish(goal);
+
+         // publish Start (vbot)
+         visualization_msgs::Marker vbot;
+         vbot.header.frame_id       = map_frame;
+         vbot.header.stamp          = ros::Time::now();
+         vbot.ns                    = "rrtx";
+         vbot.id                    = 1;
+         vbot.action                = visualization_msgs::Marker::ADD;
+         vbot.type                  = visualization_msgs::Marker::POINTS;
+         
+         vbot.pose.orientation.w    = 1.0;
+         vbot.scale.x               = 1;
+         vbot.scale.y               = 1;
+         
+         vbot.color.a               = 1;
+         vbot.color.r               = 1;
+         vbot.color.g               = 1;
+
+         geometry_msgs::Point pvbot;
+         pvbot.x = vbot_->x;
+         pvbot.y = vbot_->y;
+         pvbot.z = 1;
+         vbot.points.push_back(pvbot);
+
+         marker_pub.publish(vbot);
+
+         if(path)
+         {
+             //geometry_msgs::Path path;
+
+         }
+
+         if(tree)
+         {
+             visualization_msgs::Marker nodes, edges;
+
+             nodes.header.frame_id  = map_frame;
+             nodes.header.stamp     = ros::Time::now();
+             nodes.ns               = "rrtx";
+             nodes.id               = 2; 
+             nodes.action           = visualization_msgs::Marker::ADD;
+             nodes.type             = visualization_msgs::Marker::POINTS;
+
+             nodes.scale.x          = 0.3;
+             nodes.scale.y          = 0.3;
+
+             nodes.color.a          = 1;
+             nodes.color.b          = 1;
+
+             
+             edges.header.frame_id  = map_frame;
+             edges.header.stamp     = ros::Time::now();
+             edges.ns               = "rrtx";
+             edges.id               = 3; 
+             edges.action           = visualization_msgs::Marker::ADD;
+             edges.type             = visualization_msgs::Marker::LINE_LIST;
+
+             edges.scale.x          = 0.1;
+             edges.scale.y          = 0.1;
+
+             edges.color.a          = 1;
+             edges.color.g          = 1;
+
+             for (auto node : nodeContainer)
+             {
+                 geometry_msgs::Point p;
+                 p.x = node.x;
+                 p.y = node.y;
+
+                 nodes.points.push_back(p);
+
+                 if (node.parent == nullptr)
+                     continue;
+
+                 edges.points.push_back(p);
+                 p.x = node.parent->x;
+                 p.y = node.parent->y;
+                 edges.points.push_back(p);
+             }
+
+             marker_pub.publish(nodes);
+             marker_pub.publish(edges);
+         }
      }
 
 };
@@ -495,73 +609,9 @@ void recursive_fill(visualization_msgs::Marker &points, visualization_msgs::Mark
     }
 }
 
-void fillmarker(visualization_msgs::Marker &goal, visualization_msgs::Marker &points, visualization_msgs::Marker &lines, rrt::Node rootNode, NodeContainer container)
-{
-    goal.header.frame_id = points.header.frame_id = lines.header.frame_id = "/map";
-    goal.header.stamp = points.header.stamp = lines.header.stamp = ros::Time::now();
-    goal.ns = points.ns = lines.ns = "rrtx";
-
-    goal.pose.orientation.w = points.pose.orientation.w = lines.pose.orientation.w = 1.0;
-    goal.action = points.action = lines.action = visualization_msgs::Marker::ADD;
-
-
-    points.id = 0;
-    lines.id = 1;
-    goal.id = 2;
-
-    goal.type = points.type = visualization_msgs::Marker::POINTS;
-    lines.type = visualization_msgs::Marker::LINE_LIST;
-
-    points.scale.x = 0.5;
-    points.scale.y = 0.5;
-
-    goal.scale.x = 1;
-    goal.scale.y = 1;
-
-    lines.scale.x = 0.1;
-
-    points.color.a = 1;
-    points.color.b = 1;
-
-    goal.color.a = 1;
-    goal.color.r = 1;
-
-    lines.color.a = 1;
-    lines.color.g = 1;
-
-    geometry_msgs::Point pgoal;
-    pgoal.x = rootNode.x;
-    pgoal.y = rootNode.y;
-    pgoal.z = 1;
-    goal.points.push_back(pgoal);
-
-    //recursive_fill(points, lines, rootNode);
-
-    for(auto node : container)
-    {
-        geometry_msgs::Point p;
-        p.x = node.x;
-        p.y = node.y;
-
-        points.points.push_back(p);
-
-        if(node.parent == nullptr)
-            continue;
-
-        lines.points.push_back(p);
-        p.x = node.parent->x;
-        p.y = node.parent->y;
-        lines.points.push_back(p);
-    }
-
-}
-
-
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "RRTx");
-    ros::NodeHandle n;
-    ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("rrtx_viz", 10);
+    ros::init(argc, argv, "rrtx");
 
     costmap_2d::Costmap2D costmap(1000, 1000, 0.1, 0, 0);
     
@@ -573,27 +623,15 @@ int main(int argc, char **argv)
 
 
     rrt::RRTx rrt(&costmap);
-    rrt.setMaxDist(5);
+    rrt.setMaxDist(15);
     rrt.init(20,20, 45,70); 
-    rrt.grow(3000);
-
-    rrt::Node node;
-    cout << node.g << endl;
-    
+    rrt.grow(1000);
 
     ros::Rate rate(1);
     while(ros::ok())
     {
         //cout << "loop" << endl;
-        rrt::Node rootNode = rrt.rootNode();
-        NodeContainer container = rrt.getContainer(); 
-        visualization_msgs::Marker goal, points, lines, obstacle;
-        fillmarker(goal, points, lines, rootNode, container);
-
-        
-        marker_pub.publish(points);
-        marker_pub.publish(lines);
-        marker_pub.publish(goal);
+        rrt.publish(false, true);
 
         rate.sleep();
     }

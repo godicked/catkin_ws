@@ -13,6 +13,8 @@
 #include <costmap_2d/costmap_2d.h>
 #include <geometry_msgs/PoseStamped.h>
 
+#include <ros/ros.h>
+
 
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
@@ -22,6 +24,7 @@ using namespace boost;
 
 namespace rrt
 {
+
 
 
 struct NodeKey
@@ -42,8 +45,8 @@ struct NodeKey
 
 struct Node
 {
-    Node               *parent = nullptr;
-    std::list<Node *>   childs;
+    Node                *parent = nullptr;
+    std::vector<Node *> childs;
 
     NodeKey key;
 
@@ -53,11 +56,11 @@ struct Node
     double  x;
     double  y;
 
-    std::list<Node *> inNz;
-    std::list<Node *> outNz;
+    std::vector<Node *> inNz;
+    std::vector<Node *> outNz;
     
-    std::list<Node *> inNr;
-    std::list<Node *> outNr; 
+    std::vector<Node *> inNr;
+    std::vector<Node *> outNr; 
 };
 
 struct node_compare
@@ -97,15 +100,18 @@ class RRTx
         void                init            (double sx, double sy, double gx, double gy);
         void                grow            (unsigned int iteration);
         Node                rootNode        ();
-        NodeContainer       getContainer   ();
+        NodeContainer       getContainer    ();
+
+        void                publish         (bool path = true, bool tree = false);
 
     private:
         
         void                addVertex       (Node *v);
         
 
-        std::list<Node *>   inN             (Node v);
-        std::list<Node *>   outN            (Node v);
+        std::vector<Node *> inN             (Node v);
+        std::vector<Node *> outN            (Node v);
+        void                removeN         (std::vector<Node *> * vec, Node *u);
         
        
         Node               *nearest         (Node v);
@@ -159,8 +165,17 @@ class RRTx
         double  radius;
         double  y;
 
-        Node    *vbot;
+        Node    *vbot_;
         Node    *goal_;
+
+        std::vector<geometry_msgs::Point> smooth_path;
+
+        ros::NodeHandle nh_;
+        ros::Publisher  marker_pub;
+        ros::Publisher  path_pub;
+
+        std::string map_frame;
+
 
 
 };
