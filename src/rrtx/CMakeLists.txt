@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(RRTx)
+project(rrtx)
 
 ## Add support for C++11, supported in ROS Kinetic and newer
 #add_definitions(-std=c++11)
@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   costmap_2d
+  visualization_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -203,7 +204,11 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_executable(rrtx_lib src/RRTx.cpp)
+add_library(rrtx_lib src/rrtx.cpp)
 target_link_libraries(rrtx_lib ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} boost_system)
+
+add_library(rrtx_planner_lib src/rrtx_planner.cpp)
+target_link_libraries(rrtx_planner_lib rrtx_lib )
+
 
 

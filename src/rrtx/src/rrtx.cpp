@@ -1,4 +1,4 @@
-#include "RRTx.hpp"
+#include "rrtx.hpp"
 #include <math.h>
 
 #include <visualization_msgs/Marker.h>
@@ -10,25 +10,29 @@ using namespace boost;
 
 const double infinity = numeric_limits<double>::infinity();
 
-boost::random::mt19937 gen(time(0));
-
-
+boost::random::mt19937 gen;
 
 
 namespace rrt
 {
     
-    RRTx::RRTx(costmap_2d::Costmap2D *costmap)
+    RRTx::RRTx()
     {
-      costmap_ = costmap;
+        marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 10);
 
-      marker_pub    = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 10);
-      //path_pub      = nh_.advertise<nav_msgs::Path>("rrt_path", 10);
-
-      nh_.param<string>("map_frame", this->map_frame, "/map");
-
+        nh_.param<string>("map_frame", this->map_frame, "/map");
     }
 
+    RRTx::RRTx(costmap_2d::Costmap2D *costmap)
+    {
+        RRTx();
+        setCostmap(costmap);
+    }
+
+    void RRTx::setCostmap(costmap_2d::Costmap2D *costmap)
+    {
+        costmap_ = costmap;
+    }
     
     void RRTx::addVertex(Node *v)
     {
@@ -70,8 +74,11 @@ namespace rrt
         vector<Leaf> result;
         point p(v.x, v.y);
 
-        rtree.query(bgi::nearest(p, 1), back_inserter(result));
-        return result[0].second; 
+        rtree.query(bgi::nearest(p, 2), back_inserter(result));
+
+        if(result[0].second != vbot_)
+            return result[0].second;
+        return result[1].second; 
     }
 
     RRTx::NearInfoVec RRTx::near(Node v)
@@ -158,7 +165,7 @@ namespace rrt
             costmap_->worldToMap(wx, wy, mx, my);
             unsigned char cost = costmap_->getCost(mx, my);
             
-            if(cost > 200)
+            if(cost > 50)
                 return false;
         }
 
@@ -172,7 +179,7 @@ namespace rrt
         costmap_->worldToMap(v.x, v.y, mx, my);
         unsigned char cost = costmap_->getCost(mx, my);
 
-        if(cost > 200)
+        if(cost > 100)
             return true;
     }
 
@@ -366,7 +373,7 @@ namespace rrt
 
      void RRTx::updateRadius()
      {
-         int    n       = rtree.size() + 1;
+         int    n       = rtree.size();
          double term1   = (y / M_PI) * (log(n) / n);
          radius  = min( pow(term1, 0.5), maxDist);
 
@@ -437,11 +444,26 @@ namespace rrt
              grow();
          ros::Duration d = ros::Time::now() - t;
          cout << d.toSec() << endl;
+         cout << nodeContainer.size() << endl;
+     }
+
+     void RRTx::init(geometry_msgs::Pose start, geometry_msgs::Pose goal)
+     {
+         init(start.position.x, start.position.y, goal.position.x, goal.position.y);
      }
 
      void RRTx::init(double sx, double sy, double gx, double gy)
      {
+         ROS_INFO("Init RRTx.  start: %.1f:%.1f, goal: %.1f:%.1f", sx, sy, gx, gy);
+         ROS_INFO("Costmap size: %.1f:%.1f, costmap resolution %.2f", costmap_->getSizeInMetersX(), 
+         costmap_->getSizeInMetersY(), costmap_->getResolution());
+
          rtree.clear();
+         queue.clear();
+         hash.clear();
+         nodeContainer.clear();
+         
+         gen = boost::random::mt19937(time(0));
          
          Node start;
          start.x = sx;
@@ -456,11 +478,37 @@ namespace rrt
          
          nodeContainer.push_back(start);
          vbot_ = &nodeContainer.back();
+         addVertex(vbot_);
 
          nodeContainer.push_back(goal);
          goal_ = &nodeContainer.back();
          addVertex(goal_);
 
+     }
+
+     RRTx::Path RRTx::getPath()
+     {
+         RRTx::Path path;
+         Node *v = vbot_;
+
+         do
+         {
+            geometry_msgs::Pose p;
+            p.position.x = v->x;
+            p.position.y = v->y;
+
+            p.orientation.x = 0;
+            p.orientation.y = 0;
+            p.orientation.z = 0;
+            p.orientation.w = 1;
+
+            path.push_back(p);
+
+            v = v->parent;
+
+         }  while(v != nullptr);
+
+         return path;
      }
 
      void RRTx::setMaxDist(double dist)
@@ -483,8 +531,8 @@ namespace rrt
          goal.type                  = visualization_msgs::Marker::POINTS;
          
          goal.pose.orientation.w    = 1.0;
-         goal.scale.x               = 1;
-         goal.scale.y               = 1;
+         goal.scale.x               = 0.2;
+         goal.scale.y               = 0.2;
          
          goal.color.a               = 1;
          goal.color.r               = 1;
@@ -507,8 +555,8 @@ namespace rrt
          vbot.type                  = visualization_msgs::Marker::POINTS;
          
          vbot.pose.orientation.w    = 1.0;
-         vbot.scale.x               = 1;
-         vbot.scale.y               = 1;
+         vbot.scale.x               = 0.2;
+         vbot.scale.y               = 0.2;
          
          vbot.color.a               = 1;
          vbot.color.r               = 1;
@@ -539,8 +587,8 @@ namespace rrt
              nodes.action           = visualization_msgs::Marker::ADD;
              nodes.type             = visualization_msgs::Marker::POINTS;
 
-             nodes.scale.x          = 0.3;
-             nodes.scale.y          = 0.3;
+             nodes.scale.x          = 0.1;
+             nodes.scale.y          = 0.1;
 
              nodes.color.a          = 1;
              nodes.color.b          = 1;
@@ -553,8 +601,8 @@ namespace rrt
              edges.action           = visualization_msgs::Marker::ADD;
              edges.type             = visualization_msgs::Marker::LINE_LIST;
 
-             edges.scale.x          = 0.1;
-             edges.scale.y          = 0.1;
+             edges.scale.x          = 0.05;
+             edges.scale.y          = 0.05;
 
              edges.color.a          = 1;
              edges.color.g          = 1;
@@ -586,6 +634,8 @@ namespace rrt
 
 typedef rrt::RRTx::NodeContainer NodeContainer;
 
+
+/*
 void recursive_fill(visualization_msgs::Marker &points, visualization_msgs::Marker &lines, rrt::Node node)
 {
     geometry_msgs::Point p;
@@ -608,6 +658,7 @@ void recursive_fill(visualization_msgs::Marker &points, visualization_msgs::Mark
         recursive_fill(points, lines, *child);
     }
 }
+*/
 
 int main(int argc, char **argv)
 {

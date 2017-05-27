@@ -89,18 +89,22 @@ class RRTx
     public:
 
         typedef boost::container::stable_vector<Node> NodeContainer;
+        typedef std::vector<geometry_msgs::Pose> Path;
     
         
-        RRTx                ()              {}
+                            RRTx            ();
                             RRTx            (costmap_2d::Costmap2D *costmap);
                             ~RRTx           (){}
+
+        void                setCostmap      (costmap_2d::Costmap2D *costmap);
         void                setMaxDist      (double max_dist);
-        void                init            (geometry_msgs::PoseStamped start,
-                                             geometry_msgs::PoseStamped goal);
+        void                init            (geometry_msgs::Pose start,
+                                             geometry_msgs::Pose goal);
         void                init            (double sx, double sy, double gx, double gy);
         void                grow            (unsigned int iteration);
         Node                rootNode        ();
         NodeContainer       getContainer    ();
+        Path                getPath         ();
 
         void                publish         (bool path = true, bool tree = false);
 

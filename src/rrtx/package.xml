@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
 <package>
-  <name>RRTx</name>
+  <name>rrtx</name>
   <version>0.0.0</version>
   <description>The RRTx package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag --> 
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-  <maintainer email="godicke@todo.todo">godicke</maintainer>
+  <maintainer email="d.godicke@fu-berlin.de">godicke</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
@@ -44,15 +44,17 @@
   <build_depend>nav_core</build_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>std_msgs</build_depend>
+  <build_depend>visualization_msgs</build_depend>
   <run_depend>geometry_msgs</run_depend>
   <run_depend>nav_core</run_depend>
   <run_depend>roscpp</run_depend>
   <run_depend>std_msgs</run_depend>
-
+  <run_depend>visualization_msgs</run_depend>
+  
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->
-
+    <nav_core plugin="${prefix}/rrtx_planner_plugin.xml" />
   </export>
 </package>
