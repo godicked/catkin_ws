@@ -18,7 +18,7 @@ publish_frequency: 1.0
 obstacle_layer:
     footprint_clearing_enabled: false
     observation_sources: laser_scan_sensor
-    laser_scan_sensor: {sensor_frame: /laser, data_type: LaserScan, topic: /scan, marking: true, clearing: true}
+    laser_scan_sensor: {sensor_frame: laser, data_type: LaserScan, topic: /scan, marking: true, clearing: true}
 
 
 static_layer:

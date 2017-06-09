@@ -7,9 +7,9 @@ TrajectoryPlannerROS:
   acc_lim_theta: 3.2
   acc_lim_x: 2.5
   acc_lim_y: 2.5
-  meter_scoring: true
+  #meter_scoring: true
   holonomic_robot: false
-  occdist_scale: 0.02
+  occdist_scale: 0.00
   pdist_scale: 5.0
 
  
