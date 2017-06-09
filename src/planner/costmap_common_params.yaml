@@ -12,13 +12,13 @@ inflation_radius: 0.3
     
     #- {name: event_layer,      type: "event_layer::EventLayer"}
 
-update_frequency: 2.0
-publish_frequency: 1.0
+update_frequency: 4.0
+publish_frequency: 4.0
 
 obstacle_layer:
     footprint_clearing_enabled: false
     observation_sources: laser_scan_sensor
-    laser_scan_sensor: {sensor_frame: /laser, data_type: LaserScan, topic: /scan, marking: true, clearing: true}
+    laser_scan_sensor: {sensor_frame: robot0_laser_0, data_type: LaserScan, topic: /robot0/laser_0, marking: true, clearing: true}
 
 
 static_layer:
