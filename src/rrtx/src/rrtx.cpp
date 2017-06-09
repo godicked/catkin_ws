@@ -1,4 +1,4 @@
-#include "rrtx.hpp"
+#include <rrtx/rrtx.hpp>
 #include <math.h>
 
 #include <visualization_msgs/Marker.h>
@@ -463,7 +463,7 @@ namespace rrt
          hash.clear();
          nodeContainer.clear();
          
-         gen = boost::random::mt19937(time(0));
+         //gen = boost::random::mt19937(time(0));
          
          Node start;
          start.x = sx;
@@ -572,8 +572,59 @@ namespace rrt
 
          if(path)
          {
-             //geometry_msgs::Path path;
+             visualization_msgs::Marker nodes, edges;
 
+             nodes.header.frame_id  = map_frame;
+             nodes.header.stamp     = ros::Time::now();
+             nodes.ns               = "rrtx";
+             nodes.id               = 4; 
+             nodes.action           = visualization_msgs::Marker::ADD;
+             nodes.type             = visualization_msgs::Marker::POINTS;
+
+             nodes.scale.x          = 0.05;
+             nodes.scale.y          = 0.05;
+
+             nodes.color.a          = 1;
+             nodes.color.r          = 1;
+             nodes.color.g          = 0.5;
+
+             
+             edges.header.frame_id  = map_frame;
+             edges.header.stamp     = ros::Time::now();
+             edges.ns               = "rrtx";
+             edges.id               = 5; 
+             edges.action           = visualization_msgs::Marker::ADD;
+             edges.type             = visualization_msgs::Marker::LINE_LIST;
+
+             edges.scale.x          = 0.01;
+             edges.scale.y          = 0.01;
+
+             edges.color.a          = 1;
+             edges.color.r          = 0.5;
+             edges.color.g          = 1;
+
+             Node *node = vbot_;
+             do
+             {
+                 geometry_msgs::Point p;
+                 p.x = node->x;
+                 p.y = node->y;
+
+                 nodes.points.push_back(p);
+
+                 if (node->parent != nullptr)
+                 {
+                     edges.points.push_back(p);
+                     p.x = node->parent->x;
+                     p.y = node->parent->y;
+                     edges.points.push_back(p);
+                 }
+
+                 node = node->parent;
+             }  while(node != nullptr);
+
+             marker_pub.publish(nodes);
+             marker_pub.publish(edges);
          }
 
          if(tree)

@@ -1,5 +1,8 @@
 #include <pluginlib/class_list_macros.h>
-#include "rrtx_planner.hpp"
+#include <rrtx/rrtx_planner.hpp>
+#include <rrtx/spline_curve.hpp>
+
+#include <nav_msgs/Path.h>
 
 //register this planner as a BaseGlobalPlanner plugin
 PLUGINLIB_EXPORT_CLASS(rrt::RRTxPlanner, nav_core::BaseGlobalPlanner)
@@ -23,6 +26,7 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
   n = ros::NodeHandle("~/" + name);
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
+  path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
 }
 
 
@@ -45,7 +49,7 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     rrtx.init(start.pose, goal.pose);
     rrtx.setMaxDist(5);
     rrtx.grow(1000);
-    rrtx.publish(false, true);
+    rrtx.publish(true, true);
 
     fillPath(goal, plan);
 
@@ -55,15 +59,25 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
 void RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
 {
     RRTx::Path path = rrtx.getPath();
-    
+    path = curve_path(path, costmap_->getResolution());
+
+
     for(auto pose : path)
     {
+        //cout << pose.position.x << " " << pose.position.y << endl;
+
         geometry_msgs::PoseStamped poseStmp;
         poseStmp.header = goal.header;
         poseStmp.pose   = pose;
 
         plan.push_back(poseStmp);
     }
+
+    nav_msgs::Path spath;
+    spath.header = plan.back().header;
+    spath.poses = plan;
+    
+    path_pub.publish(spath);
 
 }
 

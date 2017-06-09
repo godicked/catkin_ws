@@ -1,3 +1,6 @@
+#ifndef GLOBAL_PLANNER_HPP
+#define GLOBAL_PLANNER_HPP
+
 #include <ros/ros.h>
 #include <costmap_2d/costmap_2d_ros.h>
 #include <costmap_2d/costmap_2d.h>
@@ -5,9 +8,6 @@
 #include <geometry_msgs/PoseStamped.h>
 
 #include "rrtx.hpp"
-
-#ifndef GLOBAL_PLANNER_CPP
-#define GLOBAL_PLANNER_CPP
 
 namespace rrt
 {
@@ -35,6 +35,7 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
     costmap_2d::Costmap2DROS *costmap_ros_;
     costmap_2d::Costmap2D *costmap_;
     ros::NodeHandle n;
+    ros::Publisher path_pub;
     RRTx rrtx;
 };
 };

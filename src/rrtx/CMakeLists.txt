@@ -110,7 +110,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES RRTx
+   LIBRARIES rrtx
 #  CATKIN_DEPENDS geometry_msgs nav_core roscpp std_msgs
 #  DEPENDS system_lib
 )
@@ -123,6 +123,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/
   ${catkin_INCLUDE_DIRS}
 )
 
