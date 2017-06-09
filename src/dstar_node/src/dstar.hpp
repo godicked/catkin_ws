@@ -6,7 +6,7 @@
 #include <boost/unordered_map.hpp>
 #include <costmap_2d/costmap_2d.h>
 #include <stdio.h>
-#include <ros/ros.h>
+//#include <ros/ros.h>
 //#include "global_planner.h"
 
 namespace dstar
@@ -39,6 +39,7 @@ struct vertex
   {
     return x == v.x && y == v.y;
   }
+
 };
 
 

@@ -1,5 +1,9 @@
 obstacle_range: 6.0
+<<<<<<< HEAD:src/global_planner/costmap_common_params.yaml
 raytrace_range: 4.0
+=======
+raytrace_range: 6.0
+>>>>>>> dev:src/planner/costmap_common_params.yaml
 footprint: [[0.15, 0.1], [0.15, -0.1], [-0.15, -0.1], [-0.15, 0.1]]
 #robot_radius: ir_of_robot
 inflation_radius: 0.3
@@ -12,8 +16,13 @@ inflation_radius: 0.3
     
     #- {name: event_layer,      type: "event_layer::EventLayer"}
 
+<<<<<<< HEAD:src/global_planner/costmap_common_params.yaml
 publish_frequency: 2.0
 update_frequency: 2.0
+=======
+update_frequency: 4.0
+publish_frequency: 4.0
+>>>>>>> dev:src/planner/costmap_common_params.yaml
 
 obstacle_layer:
     footprint_clearing_enabled: false
@@ -30,4 +39,4 @@ obstacle_layer:
 
 
 static_layer:
-    subscribe_to_updates: true
+    subscribe_to_updates: false

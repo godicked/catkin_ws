@@ -2,7 +2,7 @@ TrajectoryPlannerROS:
   max_vel_x: 0.45
   min_vel_x: 0.1
   max_vel_theta: 1.0
-  min_in_place_vel_theta: 0.4
+  min_in_place_vel_theta: 0.0
 
   acc_lim_theta: 3.2
   acc_lim_x: 4.5
@@ -11,6 +11,9 @@ TrajectoryPlannerROS:
   holonomic_robot: false
   occdist_scale: 0.02
   pdist_scale: 5.0
+<<<<<<< HEAD:src/global_planner/base_local_planner_params.yaml
   publish_cost_grid_pc: true
+=======
+>>>>>>> dev:src/planner/base_local_planner_params.yaml
 
  

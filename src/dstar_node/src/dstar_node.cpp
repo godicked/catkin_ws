@@ -7,6 +7,7 @@
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/GetPlan.h>
 #include <move_base_msgs/MoveBaseActionGoal.h>
+#include <message_filters/subscriber.h>
 #include "dstar.hpp"
 
 using namespace std;
@@ -16,9 +17,8 @@ DStar *planner;
 costmap_t costmap;
 geometry_msgs::Point pStart_, pGoal_, pPose;
 geometry_msgs::PoseStamped sGoal_;
-ros::NodeHandle *n;
-ros::Subscriber map_sub;
-ros::Subscriber update_sub;
+message_filters::Subscriber<nav_msgs::OccupancyGrid> *map_sub;
+message_filters::Subscriber<map_msgs::OccupancyGridUpdate> *update_sub;
 ros::Subscriber pose_sub;
 nav_msgs::OccupancyGridConstPtr grid_;
 ros::Publisher update_pub;
@@ -28,30 +28,43 @@ unsigned int seq;
 
 bool isInitialized = false;
 
+void startPlanning()
+{
+  update_sub->subscribe();
+}
+
+void stopPlanning()
+{
+  update_sub->unsubscribe();
+}
+
 bool isClose(geometry_msgs::Point a, geometry_msgs::Point b)
 {
+  //return a == b;
   return a.x == b.x && a.y == b.y;
 } 
 
-void refresh_map();
-
 void pose_callback(nav_msgs::OdometryConstPtr odom)
 {
+<<<<<<< HEAD
   pPose.x = odom->pose.pose.position.x;
   pPose.y = odom->pose.pose.position.y;
+=======
+  pNewStart.x = odom->pose.pose.position.x;
+  pNewStart.y = odom->pose.pose.position.y;
+  
+  if(abs(pNewStart.x - pGoal_.x) + abs(pNewStart.y - pGoal_.y) < 0.2)
+  {
+    stopPlanning();
+  }
+>>>>>>> dev
 }
 
 void map_callback(nav_msgs::OccupancyGridConstPtr grid)
 {
   //ROS_INFO("map_callback");
   grid_ = grid;
-  refresh_map();
-}
-
-void refresh_map()
-{
-  map_sub.shutdown();
-  map_sub = n->subscribe("/move_base/global_costmap/costmap", 1, map_callback);
+  map_sub->subscribe();
 }
 
 void update_callback(map_msgs::OccupancyGridUpdateConstPtr gridUpdate)
@@ -117,7 +130,7 @@ void init()
   planner->init(start.x, start.y, goal.x, goal.y);
 
   ROS_INFO("init DStar start: %d,%d", start.x, start.y);
-  update_sub = n->subscribe("/move_base/global_costmap/costmap_updates", 10, update_callback);
+  startPlanning();
   isInitialized = true;
 }
 
@@ -172,11 +185,22 @@ int main(int argc, char **argv)
   
   ros::init(argc, argv, "dstar_node");
   
-  n = new ros::NodeHandle();
-  pose_sub = n->subscribe("/robot0/odom", 1, pose_callback);
-  ros::ServiceServer server = n->advertiseService("get_plan", get_plan_callback);
-  update_pub = n->advertise<move_base_msgs::MoveBaseActionGoal>("/move_base/goal", 10);
-  refresh_map();
+  ros::NodeHandle n;
+  
+  pose_sub = n.subscribe("/robot0/odom", 1, pose_callback);
+  
+  ros::ServiceServer server = n.advertiseService("get_plan", get_plan_callback);
+  
+  update_pub = n.advertise<move_base_msgs::MoveBaseActionGoal>("/move_base/goal", 10);
+  
+  map_sub = new message_filters::Subscriber<nav_msgs::OccupancyGrid>();
+  map_sub->subscribe(n, "/move_base/global_costmap/costmap", 1);
+  map_sub->registerCallback(map_callback);
+  
+  update_sub = new message_filters::Subscriber<map_msgs::OccupancyGridUpdate>();
+  update_sub->subscribe(n, "/move_base/global_costmap/costmap_updates", 10);
+  update_sub->unsubscribe();
+  update_sub->registerCallback(update_callback);
 
   ros::Rate loop_rate(10);
 

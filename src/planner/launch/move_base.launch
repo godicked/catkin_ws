@@ -18,26 +18,32 @@
 	<node pkg="stdr_robot" type="robot_handler" name="$(anon robot_spawn)" args="add $(find stdr_resources)/resources/robots/pandora_robot.yaml 1 2 0" />
 
   <!--<include file="$(find stdr_launchers)/launch/rviz.launch" />-->
+<<<<<<< HEAD:src/global_planner/launch/move_base.launch
   <!--<node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find global_planner)/map.yaml">
+=======
+  <node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find planner)/map.yaml">
+>>>>>>> dev:src/planner/launch/move_base.launch
   <remap from="map" to="map2" />
   </node>-->
 
 
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
-    <remap from="map" to="map2"/>
+    <!--<remap from="map" to="map2"/>-->
     <remap from="cmd_vel" to="robot0/cmd_vel" />
     <remap from="odom" to="robot0/odom" />
-    <rosparam file="$(find global_planner)/costmap_common_params.yaml" command="load" ns="global_costmap" />
-    <rosparam file="$(find global_planner)/costmap_common_params.yaml" command="load" ns="local_costmap" />
-    <rosparam file="$(find global_planner)/local_costmap_params.yaml" command="load" />
-    <rosparam file="$(find global_planner)/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find planner)/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find planner)/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find planner)/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find planner)/global_costmap_params.yaml" command="load" />
     <!--<param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>-->
-    <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+    <!--<param name="base_global_planner" value="global_planner/GlobalPlanner"/>-->
+    <param name="base_global_planner" value="rrt/RRTxPlanner"/>
     <param name="controller_frequency" value="5.0" />
-    <rosparam file="$(find global_planner)/base_local_planner_params.yaml" command="load" />
+    <param name="planner_frequency" value="0.0" />
+    <rosparam file="$(find planner)/base_local_planner_params.yaml" command="load" />
   </node>
 
-  <node pkg="dstar_node" type="dstar_node" respawn="false" name="dstar_node" output="screen" />
+  <!--<node pkg="dstar_node" type="dstar_node" respawn="false" name="dstar_node" output="screen" />-->
   <node pkg="rviz" type="rviz" name="rviz"/>
   
 
@@ -49,9 +55,14 @@
 	<param name="base_frame" value="/robot0" />
   <param name="delta" value="0.1" />
   <param name="maxUrange" value="6.0" />
+<<<<<<< HEAD:src/global_planner/launch/move_base.launch
   <param name="maxRange" value="7.0" />
   <param name="map_update_interval" value="0.2" />
 	</node>
+=======
+  <param name="maxRange" value="6.0" />
+	</node>-->
+>>>>>>> dev:src/planner/launch/move_base.launch
 
 	<!--<node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" name="keyboard">
 	<remap from="cmd_vel" to="robot0/cmd_vel" />

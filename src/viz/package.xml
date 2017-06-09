@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>global_planner</name>
+  <name>viz</name>
   <version>0.0.0</version>
-  <description>The global_planer package</description>
+  <description>The viz package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag --> 
   <!-- Example:  -->
@@ -19,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/global_planer</url> -->
+  <!-- <url type="website">http://wiki.ros.org/viz</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->
@@ -40,16 +40,15 @@
   <!-- Use test_depend for packages you need only for testing: -->
   <!--   <test_depend>gtest</test_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>nav_core</build_depend>
-  <!--<build_depend>pluginlib</build_depend>-->
   <build_depend>roscpp</build_depend>
-  <run_depend>nav_core</run_depend>
-  <!--<run_depend>pluginlib</run_depend>-->
+  <build_depend>visualization_msgs</build_depend>
   <run_depend>roscpp</run_depend>
+  <run_depend>visualization_msgs</run_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
-  <nav_core plugin="${prefix}/global_planner_plugin.xml" />
+    <!-- Other tools can request additional information be placed here -->
+
   </export>
 </package>
