@@ -1,16 +1,15 @@
 <launch>
   <master auto="start"/>
 
-  <!--<include file="$(find stdr_launchers)/launch/rviz.launch" />-->
-  <node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find planner)/map.yaml">
-  <!--<remap from="map" to="map2" />-->
-  </node>
+  <!--<node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find planner)/map.yaml">
+  </node>-->
 
+  <node pkg="laser_tf" type="tf_broadcaster" name="laser_tf"></node>
 
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
-    <!--<remap from="map" to="map2"/>-->
+
     <!--<remap from="cmd_vel" to="robot0/cmd_vel" />-->
-    <remap from="odom" to="/odom" />
+    <!--<remap from="odom" to="/odom" />-->
     <rosparam file="$(find planner)/costmap_common_params.yaml" command="load" ns="global_costmap" />
     <rosparam file="$(find planner)/costmap_common_params.yaml" command="load" ns="local_costmap" />
     <rosparam file="$(find planner)/local_costmap_params.yaml" command="load" />
@@ -24,14 +23,12 @@
   </node>
 
 
-	<!--<node pkg="gmapping" type="slam_gmapping" name="gmap">
-	<remap from="scan" to="/robot0/laser_0" />
-	<remap from="map" to="/map2" />
-	<param name="base_frame" value="/robot0" />
+	<node pkg="gmapping" type="slam_gmapping" name="gmap">
+	<!--<param name="base_frame" value="/robot0" />-->
   <param name="delta" value="0.1" />
   <param name="maxUrange" value="6.0" />
   <param name="maxRange" value="6.0" />
-	</node>-->
+	</node>
 
 	<!--<node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" name="keyboard">
 	<remap from="cmd_vel" to="robot0/cmd_vel" />
