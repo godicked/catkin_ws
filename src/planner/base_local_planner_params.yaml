@@ -11,9 +11,5 @@ TrajectoryPlannerROS:
   holonomic_robot: false
   occdist_scale: 0.02
   pdist_scale: 5.0
-<<<<<<< HEAD:src/global_planner/base_local_planner_params.yaml
-  publish_cost_grid_pc: true
-=======
->>>>>>> dev:src/planner/base_local_planner_params.yaml
 
  
