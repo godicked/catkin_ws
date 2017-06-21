@@ -18,7 +18,7 @@ namespace rrt
     
     RRTx::RRTx()
     {
-        marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 10);
+        marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 1000);
 
         nh_.param<string>("map_frame", this->map_frame, "/map");
     }

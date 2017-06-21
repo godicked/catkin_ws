@@ -120,12 +120,6 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_library(dstar_lib src/dstar.cpp)
-add_library(planner_lib src/global_planner.cpp)
-target_link_libraries(planner_lib dstar_lib)
-
-
-
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}

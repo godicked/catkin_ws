@@ -23,6 +23,7 @@ RRTxPlanner::RRTxPlanner(std::string name, costmap_2d::Costmap2DROS *costmap_ros
 
 void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap_ros)
 {
+  ROS_INFO("init rrtx");
   n = ros::NodeHandle("~/" + name);
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
@@ -49,7 +50,7 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     rrtx.init(start.pose, goal.pose);
     rrtx.setMaxDist(5);
     rrtx.grow(1000);
-    rrtx.publish(true, true);
+    rrtx.publish(false, false);
 
     fillPath(goal, plan);
 
