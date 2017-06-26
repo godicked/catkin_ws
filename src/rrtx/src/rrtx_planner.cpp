@@ -36,8 +36,7 @@ bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geomet
 {
   ROS_INFO("make plan");
   
-  generatePlan(start, goal, plan);
-  return true;
+  return generatePlan(start, goal, plan);
 }
 
 bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
@@ -50,18 +49,18 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     rrtx.init(start.pose, goal.pose);
     rrtx.setMaxDist(5);
     rrtx.grow(1000);
-    rrtx.publish(false, false);
+    rrtx.publish(true, true);
 
-    fillPath(goal, plan);
-
-    return true;
+    return fillPath(goal, plan);
 }
 
-void RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
+bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
 {
-    RRTx::Path path = rrtx.getPath();
+    RRTx::Path path;
+    bool valid = rrtx.getPath(path);
     path = curve_path(path, costmap_->getResolution());
 
+    if(!valid) return false;
 
     for(auto pose : path)
     {
@@ -79,6 +78,8 @@ void RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<g
     spath.poses = plan;
     
     path_pub.publish(spath);
+
+    return true;
 
 }
 

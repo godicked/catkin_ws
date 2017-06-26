@@ -486,13 +486,17 @@ namespace rrt
 
      }
 
-     RRTx::Path RRTx::getPath()
+     bool RRTx::getPath(Path &path)
      {
-         RRTx::Path path;
          Node *v = vbot_;
+         bool foundGoal = false;
 
          do
          {
+            if(v == goal_) {
+                foundGoal = true;
+            }
+
             geometry_msgs::Pose p;
             p.position.x = v->x;
             p.position.y = v->y;
@@ -508,7 +512,7 @@ namespace rrt
 
          }  while(v != nullptr);
 
-         return path;
+         return  foundGoal;
      }
 
      void RRTx::setMaxDist(double dist)
@@ -531,8 +535,8 @@ namespace rrt
          goal.type                  = visualization_msgs::Marker::POINTS;
          
          goal.pose.orientation.w    = 1.0;
-         goal.scale.x               = 0.2;
-         goal.scale.y               = 0.2;
+         goal.scale.x               = 0.05;
+         goal.scale.y               = 0.05;
          
          goal.color.a               = 1;
          goal.color.r               = 1;
@@ -555,8 +559,8 @@ namespace rrt
          vbot.type                  = visualization_msgs::Marker::POINTS;
          
          vbot.pose.orientation.w    = 1.0;
-         vbot.scale.x               = 0.2;
-         vbot.scale.y               = 0.2;
+         vbot.scale.x               = 0.05;
+         vbot.scale.y               = 0.05;
          
          vbot.color.a               = 1;
          vbot.color.r               = 1;
@@ -581,8 +585,8 @@ namespace rrt
              nodes.action           = visualization_msgs::Marker::ADD;
              nodes.type             = visualization_msgs::Marker::POINTS;
 
-             nodes.scale.x          = 0.05;
-             nodes.scale.y          = 0.05;
+             nodes.scale.x          = 0.02;
+             nodes.scale.y          = 0.02;
 
              nodes.color.a          = 1;
              nodes.color.r          = 1;
@@ -638,8 +642,8 @@ namespace rrt
              nodes.action           = visualization_msgs::Marker::ADD;
              nodes.type             = visualization_msgs::Marker::POINTS;
 
-             nodes.scale.x          = 0.1;
-             nodes.scale.y          = 0.1;
+             nodes.scale.x          = 0.05;
+             nodes.scale.y          = 0.05;
 
              nodes.color.a          = 1;
              nodes.color.b          = 1;
@@ -652,8 +656,8 @@ namespace rrt
              edges.action           = visualization_msgs::Marker::ADD;
              edges.type             = visualization_msgs::Marker::LINE_LIST;
 
-             edges.scale.x          = 0.05;
-             edges.scale.y          = 0.05;
+             edges.scale.x          = 0.02;
+             edges.scale.y          = 0.02;
 
              edges.color.a          = 1;
              edges.color.g          = 1;

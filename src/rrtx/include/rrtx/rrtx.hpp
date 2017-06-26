@@ -104,7 +104,7 @@ class RRTx
         void                grow            (unsigned int iteration);
         Node                rootNode        ();
         NodeContainer       getContainer    ();
-        Path                getPath         ();
+        bool                getPath         (Path &path);
 
         void                publish         (bool path = true, bool tree = false);
 

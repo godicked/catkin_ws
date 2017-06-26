@@ -1,12 +1,6 @@
 <launch>
   <master auto="start"/>
 
-  <node pkg="laser_tf" type="tf_broadcaster" name="laser_tf"></node>
-  
-  <node pkg="map_server" type="map_server" name="map_server" args="$(find planner)/map.yaml"></node>
-  <node pkg="amcl" type="amcl" name="amcl"> </node>
-
-
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
     <remap from="cmd_vel" to="motor_control/twist" />
     <rosparam file="$(find planner)/config/global_costmap.yaml" command="load" />

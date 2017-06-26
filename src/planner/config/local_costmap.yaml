@@ -5,10 +5,10 @@ local_costmap:
     obstacle_range: 4.0
     raytrace_range: 4.0
 
-    #rolling_window: true
+    rolling_window: true
     #static_map: false
-    update_frequency: 1.0
-    publish_frequency: 1.0
+    update_frequency: 2.0
+    publish_frequency: 2.0
     width: 2.0
     height: 2.0
     resolution: 0.01

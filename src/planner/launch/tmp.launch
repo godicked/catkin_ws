@@ -1,16 +1,10 @@
-  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+<launch>
+  <master auto="start"/>
 
-    <!--<remap from="cmd_vel" to="robot0/cmd_vel" />-->
-    <!--<remap from="odom" to="/odom" />-->
-    <rosparam file="$(find planner)/costmap_common_params.yaml" command="load" ns="global_costmap" />
-    <rosparam file="$(find planner)/costmap_common_params.yaml" command="load" ns="local_costmap" />
-    <rosparam file="$(find planner)/local_costmap_params.yaml" command="load" />
-    <rosparam file="$(find planner)/global_costmap_params.yaml" command="load" />
-    <!--<param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS" />-->
-    <!--<param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>-->
-    <!--<param name="base_global_planner" value="rrt/RRTxPlanner"/>-->
-    <param name="base_gloabal_planner" value="navfn/NavfnROS" />
-    <param name="controller_frequency" value="2.0" />
-    <param name="planner_frequency" value="0.0" />
-    <rosparam file="$(find planner)/base_local_planner_params.yaml" command="load" />
-  </node>
+  <node pkg="laser_tf" type="tf_broadcaster" name="laser_tf"></node>
+  
+  <node pkg="map_server" type="map_server" name="map_server" args="$(find planner)/map.yaml"></node>
+  <node pkg="amcl" type="amcl" name="amcl"> </node>
+
+
+</launch>
