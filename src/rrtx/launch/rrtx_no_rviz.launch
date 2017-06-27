@@ -1,4 +1,5 @@
 <launch>
   <master auto="start"/>
-  <node pkg="RRTx" type="rrtx_lib"  respawn="false" name="rrtx" output="screen"/>
+  <node pkg="map_server" type="map_server" name="map_server" args="$(find rrtx)/config/map.yaml"></node>
+  <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx" output="screen"/>
 </launch>

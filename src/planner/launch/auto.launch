@@ -4,8 +4,9 @@
   <node pkg="laser_tf" type="tf_broadcaster" name="laser_tf"></node>
   
   <node pkg="map_server" type="map_server" name="map_server" args="$(find planner)/map.yaml"></node>
-  <node pkg="amcl" type="amcl" name="amcl"> </node>
-
+  <!--<node pkg="amcl" type="amcl" name="amcl"> </node>-->
+   
+  <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map odom 100" />
 
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
     <remap from="cmd_vel" to="motor_control/twist" />

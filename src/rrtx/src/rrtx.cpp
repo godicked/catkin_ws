@@ -23,9 +23,8 @@ namespace rrt
         nh_.param<string>("map_frame", this->map_frame, "/map");
     }
 
-    RRTx::RRTx(costmap_2d::Costmap2D *costmap)
+    RRTx::RRTx(costmap_2d::Costmap2D *costmap) : RRTx()
     {
-        RRTx();
         setCostmap(costmap);
     }
 
@@ -526,6 +525,11 @@ namespace rrt
      void RRTx::publish(bool path, bool tree)
      {
          // Publish Goal
+        if(!marker_pub) {
+            ROS_WARN("rrtx maker_pub not valid");
+            marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 1000);
+        }
+
          visualization_msgs::Marker goal;
          goal.header.frame_id       = map_frame;
          goal.header.stamp          = ros::Time::now();
@@ -714,39 +718,6 @@ void recursive_fill(visualization_msgs::Marker &points, visualization_msgs::Mark
     }
 }
 */
-
-int main(int argc, char **argv)
-{
-    ros::init(argc, argv, "rrtx");
-
-    costmap_2d::Costmap2D costmap(1000, 1000, 0.1, 0, 0);
-    
-    for(int i = 0; i < 200; i++) { for(int j = 0; j < 400; j++) {
-        costmap.setCost(i + 200, j + 100, 255);
-        costmap.setCost(j + 500, i + 790, 255);
-        costmap.setCost(i + 600, j + 300, 255);
-    }}
-
-
-    rrt::RRTx rrt(&costmap);
-    rrt.setMaxDist(15);
-    rrt.init(20,20, 45,70); 
-    rrt.grow(1000);
-
-    ros::Rate rate(1);
-    while(ros::ok())
-    {
-        //cout << "loop" << endl;
-        rrt.publish(false, true);
-
-        rate.sleep();
-    }
-
-    
-
-    return 0;
-}
-
 
 
 
