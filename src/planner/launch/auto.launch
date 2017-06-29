@@ -5,11 +5,13 @@
   
   <node pkg="map_server" type="map_server" name="map_server" args="$(find planner)/map.yaml"></node>
   <!--<node pkg="amcl" type="amcl" name="amcl"> </node>-->
+
+  <include file="$(find odometry)/launch/odometry.launch" />
    
   <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map odom 100" />
 
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
-    <remap from="cmd_vel" to="motor_control/twist" />
+    <!--<remap from="cmd_vel" to="motor_control/twist" />-->
     <rosparam file="$(find planner)/config/global_costmap.yaml" command="load" />
     <rosparam file="$(find planner)/config/local_costmap.yaml" command="load" />
     <!--<rosparam file="$(find planner)/global_costmap_params.yaml" command="load" />-->
