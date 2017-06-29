@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Marker1
+        - /Marker1/Namespaces1
       Splitter Ratio: 0.5
     Tree Height: 517
   - Class: rviz/Selection
@@ -44,7 +45,9 @@ Visualization Manager:
       Marker Topic: /rrt_tree
       Name: Marker
       Namespaces:
-        rrtx: true
+        path: true
+        pose: true
+        tree: false
       Queue Size: 100
       Value: true
   Enabled: true
@@ -79,7 +82,7 @@ Visualization Manager:
         Value: false
       Name: Current View
       Near Clip Distance: 0.01
-      Scale: 62.7591
+      Scale: 69.278
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
       X: 0

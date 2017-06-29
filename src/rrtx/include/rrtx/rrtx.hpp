@@ -8,10 +8,12 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/index/rtree.hpp>
 #include <boost/unordered_map.hpp>
-#include <boost/container/stable_vector.hpp>
 
 #include <costmap_2d/costmap_2d.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <tf/tf.h>
+
+#include "spline_curve.hpp"
 
 #include <ros/ros.h>
 
@@ -77,10 +79,8 @@ class RRTx
     typedef bg::model::point<double, 2, bg::cs::cartesian> point;
     //typedef bg::model::segment<point> segment;
     typedef bg::model::box<point> box;
-    typedef std::pair<point, Node *> Leaf;
-    typedef bgi::rtree<Leaf, bgi::rstar<16> > RTree; 
-    typedef std::tuple<Node *, float, bool> NearInfo;
-    typedef std::vector<NearInfo > NearInfoVec;
+    typedef std::pair<point, Node *> RTreeLeaf;
+    typedef bgi::rtree<RTreeLeaf, bgi::rstar<16> > RTree; 
     typedef boost::heap::fibonacci_heap<Node *, 
             boost::heap::compare<node_compare> > Queue;
     typedef Queue::handle_type handle_t;
@@ -88,7 +88,7 @@ class RRTx
 
     public:
 
-        typedef boost::container::stable_vector<Node> NodeContainer;
+        typedef std::list<Node> NodeContainer;
         typedef std::vector<geometry_msgs::Pose> Path;
     
         
@@ -100,7 +100,7 @@ class RRTx
         void                setMaxDist      (double max_dist);
         void                init            (geometry_msgs::Pose start,
                                              geometry_msgs::Pose goal);
-        void                init            (double sx, double sy, double gx, double gy);
+        void                init            (double sx, double sy, double stheta, double gx, double gy);
         void                grow            (unsigned int iteration);
         Node                rootNode        ();
         NodeContainer       getContainer    ();
@@ -119,11 +119,12 @@ class RRTx
         
        
         Node               *nearest         (Node v);
-        NearInfoVec         near            (Node v);
+        std::vector<Node *>      near            (Node v);
         double              distance        (Node v, Node u);
         Node                saturate        (Node v, Node u);
-        void                findParent      (Node *v, NearInfoVec &vnear);
-        bool                trajectoryExist (Node v, NearInfo &near);
+        void                findParent      (Node *v, std::vector<Node *>);
+        std::vector<Node *> findTrajectories(Node *v, std::vector<Node *> nodes);
+        bool                trajectoryExist (Node v, Node u);
         void                extend          (Node *v);
         void                cullNeighbors   (Node *v);
         void                verrifyQueue    (Node *v);
@@ -133,6 +134,7 @@ class RRTx
         void                updateRadius    ();
         Node                randomNode      ();
         bool                isObstacle      (Node v);
+        bool                isOutOfBound    (unsigned int mx, unsigned int my);
         void                grow            ();
 
         //  Priority Queue related functions
@@ -163,6 +165,8 @@ class RRTx
 
         //  max distance between 2 a new point and its nearest neighbor
         double maxDist;
+        // min distance, allows better curvature control
+        double minDist;
 
 
         double  epsilon = 0.05;
@@ -170,6 +174,7 @@ class RRTx
         double  y;
 
         Node    *vbot_;
+        double  vbot_theta;
         Node    *goal_;
 
         std::vector<geometry_msgs::Point> smooth_path;
@@ -180,7 +185,7 @@ class RRTx
 
         std::string map_frame;
 
-
+        BSplinePathSmoother smoother;
 
 };
 

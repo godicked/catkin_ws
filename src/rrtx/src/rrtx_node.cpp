@@ -27,7 +27,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 {
     rrtx->init(start, goal.pose); 
     rrtx->grow(growSize);
-    rrtx->publish(true, false);
+    rrtx->publish(true, true);
 }
 
 int main(int argc, char **argv)

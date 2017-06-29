@@ -26,6 +26,8 @@ namespace rrt
     RRTx::RRTx(costmap_2d::Costmap2D *costmap) : RRTx()
     {
         setCostmap(costmap);
+        minDist = smoother.getLmin(0.4363323129985824, 0.3, 2.2689280275926285);
+        ROS_INFO("minDist: %.2f", minDist);
     }
 
     void RRTx::setCostmap(costmap_2d::Costmap2D *costmap)
@@ -70,7 +72,7 @@ namespace rrt
 
     Node *RRTx::nearest(Node v)
     {
-        vector<Leaf> result;
+        vector<RTreeLeaf> result;
         point p(v.x, v.y);
 
         rtree.query(bgi::nearest(p, 2), back_inserter(result));
@@ -80,15 +82,15 @@ namespace rrt
         return result[1].second; 
     }
 
-    RRTx::NearInfoVec RRTx::near(Node v)
+    vector<Node *> RRTx::near(Node v)
     {
-        vector<Leaf> search;
+        vector<RTreeLeaf> search;
         point p1(v.x - radius, v.y - radius), 
               p2(v.x + radius, v.y + radius);
 
         box b(p1, p2);
 
-        NearInfoVec nodes;
+        vector<Node *> nodes;
         rtree.query(bgi::intersects(b), back_inserter(search));
         for(int i = 0; i < search.size(); i++)
         {
@@ -100,7 +102,7 @@ namespace rrt
                 continue;
             }
 
-            nodes.push_back(make_tuple(node, dist, false));
+            nodes.push_back(node);
         }
 
         return nodes;
@@ -119,24 +121,33 @@ namespace rrt
     {
         double dist = distance(v, u);
 
-        double dx = (v.x - u.x) / dist;
-        double dy = (v.y - u.y) / dist;
+        if(dist > radius || dist < minDist)
+        {
+            double dx = (v.x - u.x) / dist;
+            double dy = (v.y - u.y) / dist;
 
-        v.x = u.x + dx * (radius - 0.001);
-        v.y = u.y + dy * (radius - 0.001);
+            if(dist > radius)
+            {
+                v.x = u.x + dx * (radius - 0.001);
+                v.y = u.y + dy * (radius - 0.001);
+            }
+            else 
+            {
+                v.x = u.x + dx * (minDist + 0.001);
+                v.y = u.y + dy * (minDist + 0.001);
+            }
+        }
 
         return v;
     }
 
-    void RRTx::findParent(Node *v, NearInfoVec &vnear)
+    void RRTx::findParent(Node *v, vector<Node *> nodes)
     {
-        for(auto near : vnear)
+        for(auto u : nodes)
         {
-            double dist = get<1>(near);
-            Node *u     = get<0>(near);
+            double dist = distance(*v, *u);
             
-            if(v->lmc > dist + u->lmc &&
-               trajectoryExist(*v, near))
+            if(v->lmc > dist + u->lmc)
             {
                 v->parent    = u;
                 v->lmc       = dist + u->lmc;
@@ -146,10 +157,23 @@ namespace rrt
         
     }
 
-    bool RRTx::trajectoryExist(Node v, NearInfo &near)
+    vector<Node *> RRTx::findTrajectories(Node *v, vector<Node *> nodes)
     {
-        Node u      = *get<0>(near);
-        double dist = get<1>(near);
+        vector<Node *> exist;
+        for(auto u : nodes)
+        {
+            if(trajectoryExist(*v, *u))
+                exist.push_back(u);
+        }
+        return exist;
+    }
+
+    bool RRTx::trajectoryExist(Node v, Node u)
+    {
+        double dist = distance(v, u);
+
+        if(dist < minDist)
+            return false;
 
         double dx = u.x - v.x;
         double dy = u.y - v.y;
@@ -167,19 +191,27 @@ namespace rrt
             if(cost > 50)
                 return false;
         }
-
-        get<2>(near) = true;
         return true;
+    }
+
+    bool RRTx::isOutOfBound(unsigned int mx, unsigned int my)
+    {
+        return  mx < 0 || my < 0 ||
+                mx >= costmap_->getSizeInCellsX() ||
+                my >= costmap_->getSizeInCellsY();
     }
 
     bool RRTx::isObstacle(Node v)
     {
         unsigned int mx, my;
         costmap_->worldToMap(v.x, v.y, mx, my);
+
+        if(isOutOfBound(mx, my))
+            return true;
+
         unsigned char cost = costmap_->getCost(mx, my);
 
-        if(cost > 100)
-            return true;
+        return cost > 100;
     }
 
     /*  Algorithm 3: cullNeighbors(v, r)
@@ -218,10 +250,11 @@ namespace rrt
         //(called in findParent)
 
         //cout << "near" << endl;
-        NearInfoVec vnear = near(*v);
+        vector<Node *> nearNodes = near(*v);
+        vector<Node *> validNodes = findTrajectories(v, nearNodes);
+
         //cout << "findParent" << endl;
-        //cout << "aaahhhh" << endl;
-        findParent(v, vnear);
+        findParent(v, validNodes);
         if(v->parent == nullptr)
             return;
 
@@ -230,32 +263,16 @@ namespace rrt
         v->parent->childs.push_back(v);
 
         //cout << "for nver : vnear" << endl;
-        for(auto near : vnear)
+        for(auto u : validNodes)
         {
-            // Trajectory from v to u already calculated by
-            // findParent(v, near)
-            // near = (Node *u, float dist, bool trajExist)
-            Node *u         = get<0>(near);
-            bool trajExist  = get<2>(near);
 
-            if(trajExist)
-            {
-                v->outNz.push_back(u);
-                u->inNr.push_back(v);
-            }
+            v->outNz.push_back(u);
+            u->inNr.push_back(v);
 
             // Inverse trajectory u to v.
-            // Never calculate, so we call trajectoryExist(u, near)
-            // near = (v, dist = same as before, trajExist = false)
-            
-            get<0>(near) = v;
-            get<2>(near) = false;
 
-            if(trajectoryExist(*u, near))
-            {
-                u->outNr.push_back(v);
-                v->inNz.push_back(u);
-            }
+            u->outNr.push_back(v);
+            v->inNz.push_back(u);
         }
     }
 
@@ -414,9 +431,7 @@ namespace rrt
          Node new_v     = randomNode();
          Node *vnearest = nearest(new_v);
 
-         if(distance(new_v, *vnearest) > radius)
-             new_v = saturate(new_v, *vnearest);
-
+         new_v = saturate(new_v, *vnearest);
 
          if(!isObstacle(new_v))
          {
@@ -448,10 +463,14 @@ namespace rrt
 
      void RRTx::init(geometry_msgs::Pose start, geometry_msgs::Pose goal)
      {
-         init(start.position.x, start.position.y, goal.position.x, goal.position.y);
+         tf::Pose pose;
+         tf::poseMsgToTF(start, pose);
+         double yaw_angle = tf::getYaw(pose.getRotation());
+
+         init(start.position.x, start.position.y, yaw_angle, goal.position.x, goal.position.y);
      }
 
-     void RRTx::init(double sx, double sy, double gx, double gy)
+     void RRTx::init(double sx, double sy, double stheta, double gx, double gy)
      {
          ROS_INFO("Init RRTx.  start: %.1f:%.1f, goal: %.1f:%.1f", sx, sy, gx, gy);
          ROS_INFO("Costmap size: %.1f:%.1f, costmap resolution %.2f", costmap_->getSizeInMetersX(), 
@@ -464,9 +483,15 @@ namespace rrt
          
          //gen = boost::random::mt19937(time(0));
          
+         vbot_theta = stheta;
+         Node vbot;
+         vbot.x = sx;
+         vbot.y = sy;
+
          Node start;
-         start.x = sx;
-         start.y = sy;
+         start.x = vbot.x + cos(stheta) * minDist;
+         start.y = vbot.y + sin(stheta) * minDist;
+
 
          Node goal;
          goal.x     = gx;
@@ -475,9 +500,14 @@ namespace rrt
          goal.lmc   = 0;
 
          
-         nodeContainer.push_back(start);
+         nodeContainer.push_back(vbot);
          vbot_ = &nodeContainer.back();
-         addVertex(vbot_);
+         //addVertex(vbot_);
+
+         nodeContainer.push_back(start);
+         Node * start_ = &nodeContainer.back();
+         addVertex(start_);
+         vbot_->parent = start_;
 
          nodeContainer.push_back(goal);
          goal_ = &nodeContainer.back();
@@ -533,14 +563,14 @@ namespace rrt
          visualization_msgs::Marker goal;
          goal.header.frame_id       = map_frame;
          goal.header.stamp          = ros::Time::now();
-         goal.ns                    = "rrtx";
+         goal.ns                    = "pose";
          goal.id                    = 0;
          goal.action                = visualization_msgs::Marker::ADD;
          goal.type                  = visualization_msgs::Marker::POINTS;
          
          goal.pose.orientation.w    = 1.0;
-         goal.scale.x               = 0.05;
-         goal.scale.y               = 0.05;
+         goal.scale.x               = 0.1;
+         goal.scale.y               = 0.1;
          
          goal.color.a               = 1;
          goal.color.r               = 1;
@@ -557,14 +587,14 @@ namespace rrt
          visualization_msgs::Marker vbot;
          vbot.header.frame_id       = map_frame;
          vbot.header.stamp          = ros::Time::now();
-         vbot.ns                    = "rrtx";
+         vbot.ns                    = "pose";
          vbot.id                    = 1;
          vbot.action                = visualization_msgs::Marker::ADD;
          vbot.type                  = visualization_msgs::Marker::POINTS;
          
          vbot.pose.orientation.w    = 1.0;
-         vbot.scale.x               = 0.05;
-         vbot.scale.y               = 0.05;
+         vbot.scale.x               = 0.1;
+         vbot.scale.y               = 0.1;
          
          vbot.color.a               = 1;
          vbot.color.r               = 1;
@@ -584,7 +614,7 @@ namespace rrt
 
              nodes.header.frame_id  = map_frame;
              nodes.header.stamp     = ros::Time::now();
-             nodes.ns               = "rrtx";
+             nodes.ns               = "path";
              nodes.id               = 4; 
              nodes.action           = visualization_msgs::Marker::ADD;
              nodes.type             = visualization_msgs::Marker::POINTS;
@@ -599,7 +629,7 @@ namespace rrt
              
              edges.header.frame_id  = map_frame;
              edges.header.stamp     = ros::Time::now();
-             edges.ns               = "rrtx";
+             edges.ns               = "path";
              edges.id               = 5; 
              edges.action           = visualization_msgs::Marker::ADD;
              edges.type             = visualization_msgs::Marker::LINE_LIST;
@@ -641,7 +671,7 @@ namespace rrt
 
              nodes.header.frame_id  = map_frame;
              nodes.header.stamp     = ros::Time::now();
-             nodes.ns               = "rrtx";
+             nodes.ns               = "tree";
              nodes.id               = 2; 
              nodes.action           = visualization_msgs::Marker::ADD;
              nodes.type             = visualization_msgs::Marker::POINTS;
@@ -655,7 +685,7 @@ namespace rrt
              
              edges.header.frame_id  = map_frame;
              edges.header.stamp     = ros::Time::now();
-             edges.ns               = "rrtx";
+             edges.ns               = "tree";
              edges.id               = 3; 
              edges.action           = visualization_msgs::Marker::ADD;
              edges.type             = visualization_msgs::Marker::LINE_LIST;
@@ -668,19 +698,19 @@ namespace rrt
 
              for (auto node : nodeContainer)
              {
-                 geometry_msgs::Point p;
-                 p.x = node.x;
-                 p.y = node.y;
+                 geometry_msgs::Point p1, p2;
+                 p1.x = node.x;
+                 p1.y = node.y;
 
-                 nodes.points.push_back(p);
+                 nodes.points.push_back(p1);
 
                  if (node.parent == nullptr)
                      continue;
 
-                 edges.points.push_back(p);
-                 p.x = node.parent->x;
-                 p.y = node.parent->y;
-                 edges.points.push_back(p);
+                 edges.points.push_back(p1);
+                 p2.x = node.parent->x;
+                 p2.y = node.parent->y;
+                 edges.points.push_back(p2);
              }
 
              marker_pub.publish(nodes);

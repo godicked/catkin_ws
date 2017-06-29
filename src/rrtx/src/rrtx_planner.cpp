@@ -58,7 +58,8 @@ bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<g
 {
     RRTx::Path path;
     bool valid = rrtx.getPath(path);
-    path = curve_path(path, costmap_->getResolution());
+    BSplinePathSmoother smoother;
+    path = smoother.curvePath(path, costmap_->getResolution());
 
     if(!valid) return false;
 
