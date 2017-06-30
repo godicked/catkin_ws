@@ -38,7 +38,8 @@ namespace rrt
     void RRTx::addVertex(Node *v)
     {
         point v_point(v->x, v->y);
-        rtree.insert(make_pair(v_point, v));
+        RTreeLeaf leaf = make_pair(v_point, v);
+        rtree.insert(leaf);
     }
 
     vector<Node *> RRTx::inN(Node v)
