@@ -105,7 +105,7 @@ class RRTx
         Node                rootNode        ();
         NodeContainer       getContainer    ();
         bool                getPath         (Path &path);
-
+        void                setConstraint   (double steering_angle, double wheelbase, double alpha_min);
         void                publish         (bool path = true, bool tree = false);
 
     private:
@@ -119,7 +119,7 @@ class RRTx
         
        
         Node               *nearest         (Node v);
-        std::vector<Node *>      near            (Node v);
+        std::vector<Node *> near            (Node v);
         double              distance        (Node v, Node u);
         Node                saturate        (Node v, Node u);
         void                findParent      (Node *v, std::vector<Node *>);
@@ -136,6 +136,7 @@ class RRTx
         bool                isObstacle      (Node v);
         bool                isOutOfBound    (unsigned int mx, unsigned int my);
         void                grow            ();
+        double              getAngle        (Node a, Node b, Node c);
 
         //  Priority Queue related functions
         void                queueInsert     (Node *v);
@@ -186,6 +187,7 @@ class RRTx
         std::string map_frame;
 
         BSplinePathSmoother smoother;
+        double angle_min;
 
 };
 

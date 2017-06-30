@@ -9,6 +9,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Pose.h>
 
+
 #include "rrtx/rrtx.hpp"
 
 rrt::RRTx *rrtx;
@@ -25,8 +26,13 @@ void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose)
 
 void goalCallback(geometry_msgs::PoseStamped goal)
 {
+    rrtx->setConstraint(0.4363323129985824, 0.26, 2.5089280275926285);
     rrtx->init(start, goal.pose); 
     rrtx->grow(growSize);
+
+    // rrt::RRTx::Path path;
+    // rrtx->getPath(path);
+    
     rrtx->publish(true, true);
 }
 

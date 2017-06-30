@@ -26,13 +26,18 @@ namespace rrt
     RRTx::RRTx(costmap_2d::Costmap2D *costmap) : RRTx()
     {
         setCostmap(costmap);
-        minDist = smoother.getLmin(0.4363323129985824, 0.3, 2.2689280275926285);
-        ROS_INFO("minDist: %.2f", minDist);
     }
 
     void RRTx::setCostmap(costmap_2d::Costmap2D *costmap)
     {
         costmap_ = costmap;
+    }
+
+    void RRTx::setConstraint(double steering_angle, double wheelbase, double alpha_min)
+    {
+        minDist = smoother.getLmin(steering_angle, wheelbase, alpha_min);
+        angle_min = alpha_min;
+        ROS_INFO("minDist: %.2f", minDist);
     }
     
     void RRTx::addVertex(Node *v)
@@ -516,20 +521,74 @@ namespace rrt
 
      }
 
+     // get signed angle in range ]-pi; pi]
+     double RRTx::getAngle(Node a, Node b, Node c)
+     {
+        double x1, y1, x2, y2;
+
+        x1 = b.x - a.x;
+        y1 = b.y - a.y;
+
+        x2 = b.x - c.x;
+        y2 = b.y - c.y;
+
+        double dot = x1*x2 + y1*y2;
+        double cross = x1 * y2 - y1 * x2;
+
+        double angle = atan2(cross, dot);
+
+        return angle;
+     }
+
      bool RRTx::getPath(Path &path)
      {
-         Node *v = vbot_;
-         bool foundGoal = false;
+         Node *last = vbot_;
+         Node *v = last->parent;
 
-         do
+         vector<Node *> nodes;
+         nodes.push_back(vbot_);
+         nodes.push_back(v);
+
+         while(v->parent != nullptr)
          {
-            if(v == goal_) {
-                foundGoal = true;
+            double angle = getAngle(*last, *v, *v->parent);
+            if(abs(angle) < angle_min)
+            {
+                ROS_INFO("angle %.2f smaller than %.2f", angle, angle_min);
+                Node *best = nullptr;
+                
+                for(auto n : outN(*v))
+                {
+                    double new_angle = abs(getAngle(*last, *v, *n));
+                    if( new_angle >= angle_min &&
+                        (best == nullptr || best->g > n->g)) 
+                    {
+                        ROS_INFO("new angle: %.2f", new_angle);
+                        best = n;
+                    }
+                }
+
+                if(best == nullptr)
+                    break;
+                v->parent = best;
             }
 
+            last = v;
+            v = v->parent;
+            
+            double last_dist = distance(*last, *goal_);
+            double new_dist = distance(*v, *goal_);
+            if(last_dist < 0.5 && new_dist > last_dist)
+                break;
+            
+            nodes.push_back(v);
+         }
+
+         for(auto node : nodes)
+         {
             geometry_msgs::Pose p;
-            p.position.x = v->x;
-            p.position.y = v->y;
+            p.position.x = node->x;
+            p.position.y = node->y;
 
             p.orientation.x = 0;
             p.orientation.y = 0;
@@ -537,12 +596,9 @@ namespace rrt
             p.orientation.w = 1;
 
             path.push_back(p);
+         }
 
-            v = v->parent;
-
-         }  while(v != nullptr);
-
-         return  foundGoal;
+         return  true;
      }
 
      void RRTx::setMaxDist(double dist)
@@ -642,25 +698,26 @@ namespace rrt
              edges.color.r          = 0.5;
              edges.color.g          = 1;
 
-             Node *node = vbot_;
-             do
+             Path path;
+             getPath(path);
+
+             for(int i = 0; i < path.size(); i++)
              {
-                 geometry_msgs::Point p;
-                 p.x = node->x;
-                 p.y = node->y;
+                geometry_msgs::Point p;
+                 p.x = path[i].position.x;
+                 p.y = path[i].position.y;
 
                  nodes.points.push_back(p);
 
-                 if (node->parent != nullptr)
+                 if (i < path.size() - 1)
                  {
                      edges.points.push_back(p);
-                     p.x = node->parent->x;
-                     p.y = node->parent->y;
+                     p.x = path[i+1].position.x;
+                     p.y = path[i+1].position.y;
                      edges.points.push_back(p);
                  }
 
-                 node = node->parent;
-             }  while(node != nullptr);
+             }
 
              marker_pub.publish(nodes);
              marker_pub.publish(edges);
