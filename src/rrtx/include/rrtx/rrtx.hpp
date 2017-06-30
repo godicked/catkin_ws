@@ -105,7 +105,7 @@ class RRTx
         Node                rootNode        ();
         NodeContainer       getContainer    ();
         bool                getPath         (Path &path);
-        void                setConstraint   (double steering_angle, double wheelbase, double alpha_min);
+        void                setConstraint   (double steering_angle, double wheelbase);
         void                publish         (bool path = true, bool tree = false);
 
     private:
@@ -166,8 +166,8 @@ class RRTx
 
         //  max distance between 2 a new point and its nearest neighbor
         double maxDist;
-        // min distance, allows better curvature control
-        double minDist;
+        // min distance before first curve
+        double minDist = 0;
 
 
         double  epsilon = 0.05;
@@ -187,7 +187,8 @@ class RRTx
         std::string map_frame;
 
         BSplinePathSmoother smoother;
-        double angle_min;
+        bool constraint = false;
+        double kmax;
 
 };
 

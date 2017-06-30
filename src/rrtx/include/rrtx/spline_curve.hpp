@@ -22,7 +22,7 @@ class BSplinePathSmoother
 
         double getLmin(double max_steering, double wheelbase, double amin)
         {
-            double kmax = tan(max_steering) / wheelbase;
+            double kmax = getKmax(max_steering, wheelbase);
             
             double pmin = 1 / kmax;
 
@@ -34,8 +34,27 @@ class BSplinePathSmoother
             
         }
 
+        double getKmax(double max_steering, double wheelbase)
+        {
+            double kmax = tan(max_steering) / wheelbase;
+            return kmax;
+        }
+
+        double getSegmentCurvature(double lmin, double a)
+        {
+            if(fabs(a) < 0.001) return std::numeric_limits<double>::max();
+
+            double term1 = sin(a);
+	        double term2 = (1 / 8.0) * (1 - cos(a));
+	        double k = term1 / (6 * lmin * pow(term2, 3/2.0));
+	        
+            return fabs(k);
+        }
+
         std::vector<Pose> curvePath(std::vector<Pose> path, double resolution)
         {
+            if(path.size() < 3) return path;
+            
             insertMidpoints(path);
 
             Pose pose = path.back();

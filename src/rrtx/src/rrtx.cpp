@@ -33,11 +33,11 @@ namespace rrt
         costmap_ = costmap;
     }
 
-    void RRTx::setConstraint(double steering_angle, double wheelbase, double alpha_min)
+    void RRTx::setConstraint(double steering_angle, double wheelbase)
     {
-        minDist = smoother.getLmin(steering_angle, wheelbase, alpha_min);
-        angle_min = alpha_min;
-        ROS_INFO("minDist: %.2f", minDist);
+        kmax = smoother.getKmax(steering_angle, wheelbase);
+        minDist = wheelbase;
+        constraint = true;
     }
     
     void RRTx::addVertex(Node *v)
@@ -83,7 +83,7 @@ namespace rrt
 
         rtree.query(bgi::nearest(p, 2), back_inserter(result));
 
-        if(result[0].second != vbot_)
+        if(result[0].second != vbot_->parent)
             return result[0].second;
         return result[1].second; 
     }
@@ -126,22 +126,13 @@ namespace rrt
     Node RRTx::saturate(Node v, Node u)
     {
         double dist = distance(v, u);
-
-        if(dist > radius || dist < minDist)
+        if(dist > radius)
         {
             double dx = (v.x - u.x) / dist;
             double dy = (v.y - u.y) / dist;
 
-            if(dist > radius)
-            {
-                v.x = u.x + dx * (radius - 0.001);
-                v.y = u.y + dy * (radius - 0.001);
-            }
-            else 
-            {
-                v.x = u.x + dx * (minDist + 0.001);
-                v.y = u.y + dy * (minDist + 0.001);
-            }
+            v.x = u.x + dx * (radius - 0.001);
+            v.y = u.y + dy * (radius - 0.001);
         }
 
         return v;
@@ -178,9 +169,6 @@ namespace rrt
     {
         double dist = distance(v, u);
 
-        if(dist < minDist)
-            return false;
-
         double dx = u.x - v.x;
         double dy = u.y - v.y;
 
@@ -212,12 +200,12 @@ namespace rrt
         unsigned int mx, my;
         costmap_->worldToMap(v.x, v.y, mx, my);
 
-        if(isOutOfBound(mx, my))
-            return true;
+        //if(isOutOfBound(mx, my))
+        //    return true;
 
         unsigned char cost = costmap_->getCost(mx, my);
 
-        return cost > 100;
+        return cost > 150;
     }
 
     /*  Algorithm 3: cullNeighbors(v, r)
@@ -436,8 +424,8 @@ namespace rrt
 
          Node new_v     = randomNode();
          Node *vnearest = nearest(new_v);
-
          new_v = saturate(new_v, *vnearest);
+         
 
          if(!isObstacle(new_v))
          {
@@ -460,7 +448,7 @@ namespace rrt
      void RRTx::grow(unsigned int iteration)
      {
          ros::Time t = ros::Time::now();
-         for(int i = 0; i < iteration; i++)
+         while(nodeContainer.size() < iteration)
              grow();
          ros::Duration d = ros::Time::now() - t;
          cout << d.toSec() << endl;
@@ -504,6 +492,9 @@ namespace rrt
          goal.y     = gy;
          goal.g     = 0;
          goal.lmc   = 0;
+
+         if(isObstacle(goal))
+            ROS_WARN("goal is obstacle");
 
          
          nodeContainer.push_back(vbot);
@@ -551,26 +542,43 @@ namespace rrt
 
          while(v->parent != nullptr)
          {
-            double angle = getAngle(*last, *v, *v->parent);
-            if(abs(angle) < angle_min)
-            {
-                ROS_INFO("angle %.2f smaller than %.2f", angle, angle_min);
-                Node *best = nullptr;
-                
-                for(auto n : outN(*v))
-                {
-                    double new_angle = abs(getAngle(*last, *v, *n));
-                    if( new_angle >= angle_min &&
-                        (best == nullptr || best->g > n->g)) 
-                    {
-                        ROS_INFO("new angle: %.2f", new_angle);
-                        best = n;
-                    }
-                }
 
-                if(best == nullptr)
-                    break;
-                v->parent = best;
+            if(constraint)
+            {
+                
+                double angle = getAngle(*last, *v, *v->parent);
+                double lmin = min(distance(*last, *v), distance(*v, *v->parent));
+                double k = smoother.getSegmentCurvature(lmin, angle);
+                ROS_INFO("check contraint angle %.2f, lmin %.2f k %.2f kmax %.2f", angle, lmin, k, kmax);
+                if(k > kmax)
+                {
+                    Node *best = nullptr;
+                    
+                    for(auto n : outN(*v))
+                    {
+                        double new_angle = getAngle(*last, *v, *n);
+                        double new_lmin = min(distance(*last, *v), distance(*v, *n));
+                        double new_k = smoother.getSegmentCurvature(new_lmin, new_angle);
+
+                        if( new_k <= kmax &&
+                            (best == nullptr || best->g > n->g)) 
+                        {
+                            ROS_INFO("new angle %.2f, new lmin %.2f new k %.2f kmax %.2f", new_angle, new_lmin, new_k, kmax);
+                            best = n;
+                        }
+                    }
+
+                    if(best == nullptr)
+                    {
+                        for(int i = nodes.size() -1; i > 0; i--)
+                        {
+                            if(nodes[i]->g > nodes[i-1]->g)
+                                nodes.pop_back();
+                        }
+                        break;
+                    }
+                    v->parent = best;
+                }
             }
 
             last = v;

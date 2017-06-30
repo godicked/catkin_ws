@@ -4,18 +4,24 @@
 
 #include <nav_msgs/GetMap.h>
 #include <nav_msgs/OccupancyGrid.h>
+#include <nav_msgs/Path.h>
 
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Pose.h>
 
+#include <rrtx/spline_curve.hpp>
 
 #include "rrtx/rrtx.hpp"
 
 rrt::RRTx *rrtx;
+ros::Publisher path_pub;
 
 int growSize;
 float maxDist;
+float max_steering;
+float wheelbase;
+bool constraint;
 
 geometry_msgs::Pose start;
 
@@ -26,12 +32,35 @@ void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose)
 
 void goalCallback(geometry_msgs::PoseStamped goal)
 {
-    rrtx->setConstraint(0.4363323129985824, 0.26, 2.5089280275926285);
+    if(constraint)
+        rrtx->setConstraint(max_steering, wheelbase);
+    
     rrtx->init(start, goal.pose); 
     rrtx->grow(growSize);
 
-    // rrt::RRTx::Path path;
-    // rrtx->getPath(path);
+    rrt::RRTx::Path path;
+    rrtx->getPath(path);
+    
+    rrt::BSplinePathSmoother smoother;
+    path = smoother.curvePath(path, 0.05);
+
+    std::vector<geometry_msgs::PoseStamped> plan;
+    for(auto pose : path)
+    {
+        //cout << pose.position.x << " " << pose.position.y << endl;
+
+        geometry_msgs::PoseStamped poseStmp;
+        poseStmp.header = goal.header;
+        poseStmp.pose   = pose;
+
+        plan.push_back(poseStmp);
+    }
+    
+    nav_msgs::Path spath;
+    spath.header = plan.back().header;
+    spath.poses = plan;
+    
+    path_pub.publish(spath);
     
     rrtx->publish(true, true);
 }
@@ -43,6 +72,11 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
     n.param<int>("grow_size", growSize, 1000);
     n.param<float>("max_dist", maxDist, 2.0);
+    n.param<bool>("constraint", constraint, false);
+    n.param<float>("max_steering", max_steering, 0.4363323129985824);
+    n.param<float>("wheelbase", wheelbase, 0.26);
+
+    path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
 
     ros::Subscriber pose_sub = n.subscribe("initialpose", 10, poseCallback);
     ros::Subscriber goal_sub = n.subscribe("move_base_simple/goal", 10, goalCallback);
