@@ -1,5 +1,8 @@
 <launch>
   <master auto="start"/>
-  <node pkg="rrtx" type="rrtx_lib"  respawn="false" name="rrtx" output="screen"/>
-  <node pkg="rviz" type="rviz" name="rviz" />
+  
+  <include file="$(find rrtx)/launch/rrtx_no_rviz.launch" />
+  
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find rrtx)/config/rrtx.rviz" />
+
 </launch>

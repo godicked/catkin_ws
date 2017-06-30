@@ -23,6 +23,7 @@ RRTxPlanner::RRTxPlanner(std::string name, costmap_2d::Costmap2DROS *costmap_ros
 
 void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap_ros)
 {
+  ROS_INFO("init rrtx");
   n = ros::NodeHandle("~/" + name);
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
@@ -35,8 +36,7 @@ bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geomet
 {
   ROS_INFO("make plan");
   
-  generatePlan(start, goal, plan);
-  return true;
+  return generatePlan(start, goal, plan);
 }
 
 bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
@@ -45,22 +45,23 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
 {
     costmap_2d::Costmap2D copy = *costmap_;
     rrtx.setCostmap(&copy);
-
+    rrtx.setConstraint(0.4363323129985824,0.3);
     rrtx.init(start.pose, goal.pose);
     rrtx.setMaxDist(5);
     rrtx.grow(1000);
     rrtx.publish(true, true);
 
-    fillPath(goal, plan);
-
-    return true;
+    return fillPath(goal, plan);
 }
 
-void RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
+bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
 {
-    RRTx::Path path = rrtx.getPath();
-    path = curve_path(path, costmap_->getResolution());
+    RRTx::Path path;
+    bool valid = rrtx.getPath(path);
+    BSplinePathSmoother smoother;
+    path = smoother.curvePath(path, costmap_->getResolution());
 
+    if(!valid) return false;
 
     for(auto pose : path)
     {
@@ -78,6 +79,8 @@ void RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<g
     spath.poses = plan;
     
     path_pub.publish(spath);
+
+    return true;
 
 }
 

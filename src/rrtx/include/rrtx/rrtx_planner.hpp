@@ -29,7 +29,7 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
                       const geometry_msgs::PoseStamped &goal,
                       std::vector<geometry_msgs::PoseStamped> &plan);
 
-    void fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan);
+    bool fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan);
     
 
     costmap_2d::Costmap2DROS *costmap_ros_;
