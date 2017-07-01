@@ -1,6 +1,6 @@
-image: road-test.png
+image: obstacles.png
 resolution: 0.01
 origin: [-1.5, -3, 0.0]
-occupied_thresh: 0.65
+occupied_thresh: 0.7
 free_thresh: 0.196
 negate: 0
