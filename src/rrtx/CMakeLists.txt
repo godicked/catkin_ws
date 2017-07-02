@@ -17,11 +17,11 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   costmap_2d
   visualization_msgs
+  costmap_converter
 )
 
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED COMPONENTS system)
-
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -212,6 +212,7 @@ add_library(rrtx_planner_lib src/rrtx_planner.cpp)
 target_link_libraries(rrtx_planner_lib rrtx_lib )
 
 add_executable(rrtx_node src/rrtx_node.cpp)
-target_link_libraries(rrtx_node rrtx_lib)
+target_link_libraries(rrtx_node rrtx_lib ${costmap_converter_LIBRARIES})
 
+add_executable(rtree src/rtree.cpp)
 

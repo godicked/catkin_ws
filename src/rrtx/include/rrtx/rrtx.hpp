@@ -103,8 +103,9 @@ class RRTx
     typedef std::pair<point, Node *> RTreePoint;
     typedef bgi::rtree<RTreePoint, bgi::rstar<16> > NodeRTree;
 
-    typedef std::pair<segment, Trajectory *> RTreeSegment;
-    typedef bgi::rtree<RTreeSegment, bgi::rstar<16> > TrajectoryRTree;
+    // segment indexer is not supported in boost 1.54
+    typedef std::pair<box, Trajectory *> RTreeBox;
+    typedef bgi::rtree<RTreeBox, bgi::rstar<16> > TrajectoryRTree;
 
     typedef boost::heap::fibonacci_heap<Node *, 
             boost::heap::compare<node_compare> > Queue;
@@ -186,7 +187,7 @@ class RRTx
         NodeRTree   rtree;
 
         TrajectoryRTree validTraj;
-        //TrajectoryRTree obstacleTraj;
+        TrajectoryRTree obstacleTraj;
 
         //  The priority queue needed by the RRTx algorithm
         //  And a NodeHash table to save the handle of the inserted object

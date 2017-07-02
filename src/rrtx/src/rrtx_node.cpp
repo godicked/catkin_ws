@@ -4,6 +4,9 @@
 #include <costmap_2d/static_layer.h>
 #include <costmap_2d/costmap_2d_ros.h>
 
+#include <costmap_converter/costmap_to_lines_ransac.h>
+#include <costmap_converter/costmap_to_polygons.h>
+
 #include <tf/transform_listener.h>
 
 #include <nav_msgs/GetMap.h>
@@ -87,7 +90,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
     n.param<int>("grow_size", growSize, 1000);
     n.param<float>("max_dist", maxDist, 2.0);
-    n.param<bool>("constraint", constraint, false);
+    n.param<bool>("constraint", constraint, true);
     n.param<float>("max_steering", max_steering, 0.4363323129985824);
     n.param<float>("wheelbase", wheelbase, 0.26);
 
@@ -129,7 +132,31 @@ int main(int argc, char **argv)
     cost = costmap.getCostmap();
     rrtx = new rrt::RRTx(cost);
     rrtx->setMaxDist(maxDist);
-    
+
+    costmap_2d::Costmap2D small(
+        200,
+        200,
+        0.1,
+        0,
+        0
+    );
+
+    for(int x = 0; x < small.getSizeInCellsX(); x++)
+    {
+        for(int y = 0; y < small.getSizeInCellsY(); y++)
+        {
+            small.setCost(x, y, cost->getCost(x, y));
+        }
+
+    }
+
+    costmap_converter::CostmapToPolygonsDBSMCCH converter;
+    converter.initialize(n);
+    converter.setCostmap2D(&small);
+    //converter.startWorker(ros::Rate(1), cost);
+    ros::Time time = ros::Time::now();
+    converter.compute();
+    std::cout << ros::Time::now() - time << std::endl;
 
     ros::spin();
 
