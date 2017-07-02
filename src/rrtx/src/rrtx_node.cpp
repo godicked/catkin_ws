@@ -1,6 +1,13 @@
 #include <ros/ros.h>
 
 #include <costmap_2d/costmap_2d.h>
+#include <costmap_2d/static_layer.h>
+#include <costmap_2d/costmap_2d_ros.h>
+
+#include <costmap_converter/costmap_to_lines_ransac.h>
+#include <costmap_converter/costmap_to_polygons.h>
+
+#include <tf/transform_listener.h>
 
 #include <nav_msgs/GetMap.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -23,6 +30,8 @@ float max_steering;
 float wheelbase;
 bool constraint;
 
+costmap_2d::Costmap2D *cost;
+
 geometry_msgs::Pose start;
 
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
@@ -32,6 +41,15 @@ void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose)
 
 void goalCallback(geometry_msgs::PoseStamped goal)
 {
+    unsigned int mx, my;
+    cost->worldToMap(goal.pose.position.x, goal.pose.position.y, mx, my);
+
+        //if(isOutOfBound(mx, my))
+        //    return true;
+
+    ROS_INFO("cost %d", cost->getCost(mx, my));
+    //return;
+
     if(constraint)
         rrtx->setConstraint(max_steering, wheelbase);
     
@@ -72,7 +90,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
     n.param<int>("grow_size", growSize, 1000);
     n.param<float>("max_dist", maxDist, 2.0);
-    n.param<bool>("constraint", constraint, false);
+    n.param<bool>("constraint", constraint, true);
     n.param<float>("max_steering", max_steering, 0.4363323129985824);
     n.param<float>("wheelbase", wheelbase, 0.26);
 
@@ -85,34 +103,60 @@ int main(int argc, char **argv)
     ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("static_map");
     nav_msgs::GetMap srv;
 
-    costmap_2d::Costmap2D costmap;
+    tf::TransformListener tf(ros::Duration(10));
+    costmap_2d::Costmap2DROS costmap("costmap", tf);
 
-    client.waitForExistence();
-    if(client.call(srv)) {
-        nav_msgs::OccupancyGrid map = srv.response.map;
-        costmap = costmap_2d::Costmap2D(
-            map.info.width,
-            map.info.height,
-            map.info.resolution,
-            map.info.origin.position.x,
-            map.info.origin.position.y
-        );
+    // client.waitForExistence();
+    // if(client.call(srv)) {
+    //     nav_msgs::OccupancyGrid map = srv.response.map;
+    //     costmap = costmap_2d::StaticLayer(
+    //         map.info.width,
+    //         map.info.height,
+    //         map.info.resolution,
+    //         map.info.origin.position.x,
+    //         map.info.origin.position.y
+    //     );
 
-        for(unsigned int i = 0; i < map.data.size(); i++)
-        {
-            unsigned int mx, my;
-            costmap.indexToCells(i, mx, my);
-            costmap.setCost(mx, my, map.data[i]);
-        }
-    }
-    else 
-    {
-        ROS_WARN("Could not get map from service");
-    }
+    //     for(unsigned int i = 0; i < map.data.size(); i++)
+    //     {
+    //         unsigned int mx, my;
+    //         costmap.indexToCells(i, mx, my);
+    //         costmap.setCost(mx, my, map.data[i]);
+    //     }
+    // }
+    // else 
+    // {
+    //     ROS_WARN("Could not get map from service");
+    // }
 
-    rrtx = new rrt::RRTx(&costmap);
+    cost = costmap.getCostmap();
+    rrtx = new rrt::RRTx(cost);
     rrtx->setMaxDist(maxDist);
-    
+
+    costmap_2d::Costmap2D small(
+        200,
+        200,
+        0.1,
+        0,
+        0
+    );
+
+    for(int x = 0; x < small.getSizeInCellsX(); x++)
+    {
+        for(int y = 0; y < small.getSizeInCellsY(); y++)
+        {
+            small.setCost(x, y, cost->getCost(x, y));
+        }
+
+    }
+
+    costmap_converter::CostmapToPolygonsDBSMCCH converter;
+    converter.initialize(n);
+    converter.setCostmap2D(&small);
+    //converter.startWorker(ros::Rate(1), cost);
+    ros::Time time = ros::Time::now();
+    converter.compute();
+    std::cout << ros::Time::now() - time << std::endl;
 
     ros::spin();
 

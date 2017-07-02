@@ -65,6 +65,26 @@ struct Node
     std::vector<Node *> outNr; 
 };
 
+struct Trajectory
+{
+    Node *source;
+    Node *target;
+
+    double cost;
+};
+
+typedef std::pair<Node *, Node *> NodePair;
+struct hash_node_pair
+{
+    std::size_t operator()(const NodePair &p)
+    {
+        std::size_t seed = 0;
+        boost::hash_combine(seed, p.first);
+        boost::hash_combine(seed, p.second);
+        return seed;
+    }
+};
+
 struct node_compare
 {
     bool operator()(const Node *v1, const Node *v2) const
@@ -77,14 +97,23 @@ struct node_compare
 class RRTx
 {
     typedef bg::model::point<double, 2, bg::cs::cartesian> point;
-    //typedef bg::model::segment<point> segment;
+    typedef bg::model::segment<point> segment;
     typedef bg::model::box<point> box;
-    typedef std::pair<point, Node *> RTreeLeaf;
-    typedef bgi::rtree<RTreeLeaf, bgi::rstar<16> > RTree; 
+
+    typedef std::pair<point, Node *> RTreePoint;
+    typedef bgi::rtree<RTreePoint, bgi::rstar<16> > NodeRTree;
+
+    // segment indexer is not supported in boost 1.54
+    typedef std::pair<box, Trajectory *> RTreeBox;
+    typedef bgi::rtree<RTreeBox, bgi::rstar<16> > TrajectoryRTree;
+
     typedef boost::heap::fibonacci_heap<Node *, 
             boost::heap::compare<node_compare> > Queue;
     typedef Queue::handle_type handle_t;
-    typedef boost::unordered_map<Node *, handle_t> Hash;
+
+    typedef boost::unordered_map<Node *, handle_t> NodeHash;
+
+    typedef boost::unordered_map<NodePair, Trajectory, hash_node_pair> TrajectoryHash;
 
     public:
 
@@ -106,7 +135,7 @@ class RRTx
         NodeContainer       getContainer    ();
         bool                getPath         (Path &path);
         void                setConstraint   (double steering_angle, double wheelbase);
-        void                publish         (bool path = true, bool tree = false);
+        void                publish     (bool path = true, bool tree = false);
 
     private:
         
@@ -150,16 +179,21 @@ class RRTx
 
         //  Container to hold the Node structure
         NodeContainer nodeContainer;
+        //  Hash container for trajectories between neighbors
+        TrajectoryHash trajectoryHash;
 
         //  R* Tree for efficient spacial k nearest neighbors (KNN) search
         //  and helps for the radius search
-        RTree   rtree;
+        NodeRTree   rtree;
+
+        TrajectoryRTree validTraj;
+        TrajectoryRTree obstacleTraj;
 
         //  The priority queue needed by the RRTx algorithm
-        //  And a hash table to save the handle of the inserted object
+        //  And a NodeHash table to save the handle of the inserted object
         //  Allows contains/updade/remove operations
         Queue   queue;
-        Hash    hash;
+        NodeHash    nodeHash;
 
         //  A costmap for the collision tests
         costmap_2d::Costmap2D *costmap_;

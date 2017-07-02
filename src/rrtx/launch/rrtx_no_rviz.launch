@@ -1,5 +1,11 @@
 <launch>
   <master auto="start"/>
+  
   <node pkg="map_server" type="map_server" name="map_server" args="$(find rrtx)/config/map.yaml"></node>
-  <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx" output="screen" />
+  
+  <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx" output="screen">
+    <rosparam file="$(find rrtx)/config/costmap.yaml" command="load" />
+  </node>
+
+  <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map base_link 100" />
 </launch>

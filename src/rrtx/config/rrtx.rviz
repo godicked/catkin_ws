@@ -7,6 +7,7 @@ Panels:
         - /Global Options1
         - /Marker1
         - /Marker1/Namespaces1
+        - /Path1
       Splitter Ratio: 0.5
     Tree Height: 517
   - Class: rviz/Selection
@@ -41,15 +42,13 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /rrt_tree
       Name: Marker
       Namespaces:
-        path: true
-        pose: true
-        tree: false
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -58,8 +57,8 @@ Visualization Manager:
       Head Diameter: 0.3
       Head Length: 0.2
       Length: 0.3
-      Line Style: Lines
-      Line Width: 0.03
+      Line Style: Billboards
+      Line Width: 0.05
       Name: Path
       Offset:
         X: 0
@@ -70,6 +69,15 @@ Visualization Manager:
       Shaft Diameter: 0.1
       Shaft Length: 0.1
       Topic: /smooth_path
+      Unreliable: false
+      Value: true
+    - Alpha: 0.7
+      Class: rviz/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic: /rrtx/costmap/costmap
       Unreliable: false
       Value: true
   Enabled: true
@@ -107,8 +115,8 @@ Visualization Manager:
       Scale: 92.9341
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 0
-      Y: 0
+      X: 2.96297
+      Y: 0.150873
     Saved: ~
 Window Geometry:
   Displays:

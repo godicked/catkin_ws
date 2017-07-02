@@ -43,7 +43,7 @@ namespace rrt
     void RRTx::addVertex(Node *v)
     {
         point v_point(v->x, v->y);
-        RTreeLeaf leaf = make_pair(v_point, v);
+        RTreePoint leaf = make_pair(v_point, v);
         rtree.insert(leaf);
     }
 
@@ -78,7 +78,7 @@ namespace rrt
 
     Node *RRTx::nearest(Node v)
     {
-        vector<RTreeLeaf> result;
+        vector<RTreePoint> result;
         point p(v.x, v.y);
 
         rtree.query(bgi::nearest(p, 2), back_inserter(result));
@@ -90,7 +90,7 @@ namespace rrt
 
     vector<Node *> RRTx::near(Node v)
     {
-        vector<RTreeLeaf> search;
+        vector<RTreePoint> search;
         point p1(v.x - radius, v.y - radius), 
               p2(v.x + radius, v.y + radius);
 
@@ -180,6 +180,7 @@ namespace rrt
            
            unsigned int mx, my;
             costmap_->worldToMap(wx, wy, mx, my);
+            //ROS_INFO("test %d,%d", mx, my);
             unsigned char cost = costmap_->getCost(mx, my);
             
             if(cost > 50)
@@ -347,30 +348,30 @@ namespace rrt
 	void RRTx::queueInsert(Node *v)
 	 {
 	    updateKey(v); 
-	    hash[v] = queue.push(v);
+	    nodeHash[v] = queue.push(v);
 	 }
 	 
 	 bool RRTx::queueContains(Node *v)
 	 {
-	    return hash.find(v) != hash.end();
+	    return nodeHash.find(v) != nodeHash.end();
 	 }
 	 
 	 void RRTx::queueUpdate(Node *v)
 	 {
 	    updateKey(v);
-	    queue.update(hash[v]);
+	    queue.update(nodeHash[v]);
 	 }
 	 
 	 void RRTx::queueRemove(Node *v)
 	 {
-	    queue.erase(hash[v]);
-	    hash.erase(v);
+	    queue.erase(nodeHash[v]);
+	    nodeHash.erase(v);
 	 }
 
      Node *RRTx::queuePop()
      {
          Node *toRemove = queue.top();
-         hash.erase(toRemove);
+         nodeHash.erase(toRemove);
          queue.pop();
          return toRemove;
      }
@@ -431,7 +432,7 @@ namespace rrt
          {
              nodeContainer.push_back(new_v);
              Node *v = &nodeContainer.back();
-           
+             
              extend(v);
              if(v->parent != nullptr)
              {
@@ -472,7 +473,7 @@ namespace rrt
 
          rtree.clear();
          queue.clear();
-         hash.clear();
+         nodeHash.clear();
          nodeContainer.clear();
          
          //gen = boost::random::mt19937(time(0));
@@ -496,7 +497,6 @@ namespace rrt
          if(isObstacle(goal))
             ROS_WARN("goal is obstacle");
 
-         
          nodeContainer.push_back(vbot);
          vbot_ = &nodeContainer.back();
          //addVertex(vbot_);
@@ -549,7 +549,7 @@ namespace rrt
                 double angle = getAngle(*last, *v, *v->parent);
                 double lmin = min(distance(*last, *v), distance(*v, *v->parent));
                 double k = smoother.getSegmentCurvature(lmin, angle);
-                ROS_INFO("check contraint angle %.2f, lmin %.2f k %.2f kmax %.2f", angle, lmin, k, kmax);
+                //ROS_INFO("check contraint angle %.2f, lmin %.2f k %.2f kmax %.2f", angle, lmin, k, kmax);
                 if(k > kmax)
                 {
                     Node *best = nullptr;
@@ -563,7 +563,7 @@ namespace rrt
                         if( new_k <= kmax &&
                             (best == nullptr || best->g > n->g)) 
                         {
-                            ROS_INFO("new angle %.2f, new lmin %.2f new k %.2f kmax %.2f", new_angle, new_lmin, new_k, kmax);
+                            //ROS_INFO("new angle %.2f, new lmin %.2f new k %.2f kmax %.2f", new_angle, new_lmin, new_k, kmax);
                             best = n;
                         }
                     }
