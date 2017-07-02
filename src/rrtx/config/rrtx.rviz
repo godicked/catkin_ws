@@ -42,13 +42,15 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Class: rviz/Marker
-      Enabled: false
+      Enabled: true
       Marker Topic: /rrt_tree
       Name: Marker
       Namespaces:
-        {}
+        path: true
+        pose: true
+        tree: false
       Queue Size: 100
-      Value: false
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -64,6 +66,7 @@ Visualization Manager:
         X: 0
         Y: 0
         Z: 0
+      Pose Color: 255; 85; 255
       Pose Style: None
       Radius: 0.03
       Shaft Diameter: 0.1
@@ -112,11 +115,11 @@ Visualization Manager:
         Value: false
       Name: Current View
       Near Clip Distance: 0.01
-      Scale: 92.9341
+      Scale: 63.9101
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 2.96297
-      Y: 0.150873
+      X: 3.484
+      Y: 2.03774
     Saved: ~
 Window Geometry:
   Displays:

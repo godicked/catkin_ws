@@ -66,35 +66,43 @@ class BSplinePathSmoother
             for(unsigned int i = 0; i < path.size() - (SEGMENT_SIZE-1) ; i += 2)
             {
                 segment = getSegment(path, i);
-                double size = segementSize(segment);
+                double size1 = distance(segment[0], segment[2]);
+                double size2 = distance(segment[2], segment[4]);
+                
+                // for(int i = 0; i < 5; i++)
+                // {
+                //     pose.position = segment[i];
+                //     curved_path.push_back(pose);
+                // }
 
-                double stepSize;
-                if(size > 0) {
-                    stepSize = resolution / size;
-                }
-                else
-                {
-                    stepSize = 1;
-                }
-
-                double u_min = 0.25, u_max = 0.75;
+                double u_min = 0.20, u_center = 0.5, u_max = 0.80;
 
                 if(i == 0)
                     u_min = 0.0;
                 if(i == path.size() - SEGMENT_SIZE)
                     u_max = 1.0;
 
-                for(double u = u_min; u < u_max; u += stepSize)
+                double step1 = resolution * (u_center - u_min) / size1;
+                double step2 = resolution * (u_max - u_center) / size2;
+
+                ROS_INFO("%.3f : %.3f", step1, step2);
+
+                for(double u = u_min; u < u_center - step1; u += step1)
                 {
                     pose.position = curvePoint(segment, u);
                     curved_path.push_back(pose);
                 }
 
-                if(u_max == 1.0)
+                for(double u = u_center; u < u_max; u += step2)
                 {
-                    pose.position = curvePoint(segment, u_max);
+                    pose.position = curvePoint(segment, u);
                     curved_path.push_back(pose);
                 }
+                // if(u_max == 1.0)
+                // {
+                //     pose.position = curvePoint(segment, u_max);
+                //     curved_path.push_back(pose);
+                // }
                 
             }
 
@@ -166,19 +174,19 @@ class BSplinePathSmoother
             for(auto it = path.begin(); it != path.end() - 1; it++)
             {
                 Pose a = *it;
-                Pose b = *(it++);
+                Pose b = *(it+1);
 
                 Pose mid;
                 mid.position.x = (a.position.x + b.position.x) / 2.0;
                 mid.position.y = (a.position.y + b.position.y) / 2.0;
 
-                it = path.insert(it++, mid);
+                it = path.insert(it+1, mid);
             }
         }
 
         double segementSize(std::vector<Point> segment)
         {
-            return distance(segment[0], segment[1]) + distance(segment[1], segment[2]);
+            return distance(segment[0], segment[2]) + distance(segment[2], segment[4]);
         }
 
         double distance(Point p1, Point p2)
