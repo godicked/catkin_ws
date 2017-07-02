@@ -8,6 +8,7 @@
 #define SEGMENT_SIZE 5
 #define ORDER 3
 
+
 namespace rrt
 {
 
@@ -65,6 +66,16 @@ class BSplinePathSmoother
             for(unsigned int i = 0; i < path.size() - (SEGMENT_SIZE-1) ; i += 2)
             {
                 segment = getSegment(path, i);
+                double size = segementSize(segment);
+
+                double stepSize;
+                if(size > 0) {
+                    stepSize = resolution / size;
+                }
+                else
+                {
+                    stepSize = 1;
+                }
 
                 double u_min = 0.25, u_max = 0.75;
 
@@ -73,7 +84,7 @@ class BSplinePathSmoother
                 if(i == path.size() - SEGMENT_SIZE)
                     u_max = 1.0;
 
-                for(double u = u_min; u < u_max; u += resolution / 4)
+                for(double u = u_min; u < u_max; u += stepSize)
                 {
                     pose.position = curvePoint(segment, u);
                     curved_path.push_back(pose);
@@ -163,6 +174,19 @@ class BSplinePathSmoother
 
                 it = path.insert(it++, mid);
             }
+        }
+
+        double segementSize(std::vector<Point> segment)
+        {
+            return distance(segment[0], segment[1]) + distance(segment[1], segment[2]);
+        }
+
+        double distance(Point p1, Point p2)
+        {
+            double dx = p2.x - p1.x;
+            double dy = p2.y - p1.y;
+
+            return sqrt(dx*dx + dy*dy);
         }
 
 

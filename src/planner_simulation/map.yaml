@@ -1,12 +1,6 @@
-<<<<<<< HEAD:src/planner_simulation/map.yaml
 image: mymap.png
 resolution: 0.04
 origin: [0.0, 0.0, 0.0]
-=======
-image: 300x300.png
-resolution: 0.02
-origin: [-2.5, -2.5, 0.0]
->>>>>>> dev:src/planner/map.yaml
 occupied_thresh: 0.65
 free_thresh: 0.196
 negate: 0

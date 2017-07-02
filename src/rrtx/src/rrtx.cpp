@@ -432,7 +432,7 @@ namespace rrt
          {
              nodeContainer.push_back(new_v);
              Node *v = &nodeContainer.back();
-           
+             
              extend(v);
              if(v->parent != nullptr)
              {
@@ -549,7 +549,7 @@ namespace rrt
                 double angle = getAngle(*last, *v, *v->parent);
                 double lmin = min(distance(*last, *v), distance(*v, *v->parent));
                 double k = smoother.getSegmentCurvature(lmin, angle);
-                ROS_INFO("check contraint angle %.2f, lmin %.2f k %.2f kmax %.2f", angle, lmin, k, kmax);
+                //ROS_INFO("check contraint angle %.2f, lmin %.2f k %.2f kmax %.2f", angle, lmin, k, kmax);
                 if(k > kmax)
                 {
                     Node *best = nullptr;
@@ -563,7 +563,7 @@ namespace rrt
                         if( new_k <= kmax &&
                             (best == nullptr || best->g > n->g)) 
                         {
-                            ROS_INFO("new angle %.2f, new lmin %.2f new k %.2f kmax %.2f", new_angle, new_lmin, new_k, kmax);
+                            //ROS_INFO("new angle %.2f, new lmin %.2f new k %.2f kmax %.2f", new_angle, new_lmin, new_k, kmax);
                             best = n;
                         }
                     }

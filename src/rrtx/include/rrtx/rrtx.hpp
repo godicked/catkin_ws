@@ -135,7 +135,7 @@ class RRTx
         NodeContainer       getContainer    ();
         bool                getPath         (Path &path);
         void                setConstraint   (double steering_angle, double wheelbase);
-        void                publish         (bool path = true, bool tree = false);
+        void                publish     (bool path = true, bool tree = false);
 
     private:
         
