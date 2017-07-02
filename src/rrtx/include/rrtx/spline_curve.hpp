@@ -75,19 +75,19 @@ class BSplinePathSmoother
                 //     curved_path.push_back(pose);
                 // }
 
-                double u_min = 0.20, u_center = 0.5, u_max = 0.80;
+                double u_min = 0.25, u_center = 0.5, u_max = 0.75;
 
                 if(i == 0)
                     u_min = 0.0;
                 if(i == path.size() - SEGMENT_SIZE)
                     u_max = 1.0;
 
-                double step1 = resolution * (u_center - u_min) / size1;
-                double step2 = resolution * (u_max - u_center) / size2;
+                double step1 = 2 * resolution * (u_center - u_min) / size1;
+                double step2 = 2 * resolution * (u_max - u_center) / size2;
 
-                ROS_INFO("%.3f : %.3f", step1, step2);
+                //ROS_INFO("%.3f : %.3f", step1, step2);
 
-                for(double u = u_min; u < u_center - step1; u += step1)
+                for(double u = u_min; u < u_center; u += step1)
                 {
                     pose.position = curvePoint(segment, u);
                     curved_path.push_back(pose);
@@ -171,6 +171,7 @@ class BSplinePathSmoother
 
         void insertMidpoints(std::vector<Pose> &path)
         {
+            ROS_INFO("%ld points", path.size());
             for(auto it = path.begin(); it != path.end() - 1; it++)
             {
                 Pose a = *it;
@@ -182,6 +183,7 @@ class BSplinePathSmoother
 
                 it = path.insert(it+1, mid);
             }
+            ROS_INFO("%ld points", path.size());
         }
 
         double segementSize(std::vector<Point> segment)
