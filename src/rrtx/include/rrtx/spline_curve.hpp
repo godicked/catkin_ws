@@ -82,8 +82,8 @@ class BSplinePathSmoother
                 if(i == path.size() - SEGMENT_SIZE)
                     u_max = 1.0;
 
-                double step1 = 2 * resolution * (u_center - u_min) / size1;
-                double step2 = 2 * resolution * (u_max - u_center) / size2;
+                double step1 = resolution * (u_center - u_min) / size1;
+                double step2 = resolution * (u_max - u_center) / size2;
 
                 //ROS_INFO("%.3f : %.3f", step1, step2);
 
@@ -93,7 +93,7 @@ class BSplinePathSmoother
                     curved_path.push_back(pose);
                 }
 
-                for(double u = u_center; u < u_max; u += step2)
+                for(double u = u_center; u <= u_max; u += step2)
                 {
                     pose.position = curvePoint(segment, u);
                     curved_path.push_back(pose);
