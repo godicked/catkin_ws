@@ -61,8 +61,11 @@ void fill_low_res(costmap_2d::Costmap2D *fullmap, costmap_2d::Costmap2D &low_res
             low_res.mapToWorld(lmx, lmy, wx, wy);
             unsigned int fmx, fmy;
             fullmap->worldToMap(wx, wy, fmx, fmy);
-
-            low_res.setCost(lmx, lmy, fullmap->getCost(fmx, fmy));
+            unsigned char cost = fullmap->getCost(fmx, fmy);
+            if( cost > 150 )
+                cost = 254;
+            
+            low_res.setCost(lmx, lmy, cost);
       }
   }
 }

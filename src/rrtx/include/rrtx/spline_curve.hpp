@@ -171,7 +171,7 @@ class BSplinePathSmoother
 
         void insertMidpoints(std::vector<Pose> &path)
         {
-            ROS_INFO("%ld points", path.size());
+            //ROS_INFO("%ld points", path.size());
             for(auto it = path.begin(); it != path.end() - 1; it++)
             {
                 Pose a = *it;
@@ -183,7 +183,7 @@ class BSplinePathSmoother
 
                 it = path.insert(it+1, mid);
             }
-            ROS_INFO("%ld points", path.size());
+            //ROS_INFO("%ld points", path.size());
         }
 
         double segementSize(std::vector<Point> segment)

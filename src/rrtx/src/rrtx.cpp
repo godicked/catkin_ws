@@ -452,8 +452,7 @@ namespace rrt
          while(nodeContainer.size() < iteration)
              grow();
          ros::Duration d = ros::Time::now() - t;
-         cout << d.toSec() << endl;
-         cout << nodeContainer.size() << endl;
+         ROS_INFO("RRTx grow took %.2f seconds ( %ld nodes )", d.toSec(), nodeContainer.size());
      }
 
      void RRTx::init(geometry_msgs::Pose start, geometry_msgs::Pose goal)
@@ -533,6 +532,8 @@ namespace rrt
 
      bool RRTx::getPath(Path &path)
      {
+         ros::Time t = ros::Time::now();
+
          Node *last = vbot_;
          Node *v = last->parent;
 
@@ -605,6 +606,9 @@ namespace rrt
 
             path.push_back(p);
          }
+
+         ros::Duration d = ros::Time::now() - t;
+         ROS_INFO("Get Path took %.2f seconds", d.toSec());
 
          return  true;
      }
