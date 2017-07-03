@@ -1,5 +1,12 @@
 <launch>
   <master auto="start"/>
-  <node pkg="RRTx" type="rrtx_node"  respawn="false" name="rrtx" output="screen" launch-prefix="gdb -ex run --args"/>
-  <node pkg="rviz" type="rviz" name="rviz" />
+  <node pkg="map_server" type="map_server" name="map_server" args="$(find rrtx)/config/map.yaml"></node>
+  
+  <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx_node" output="screen" launch-prefix="gdb -ex run --args">
+  <rosparam file="$(find rrtx)/config/costmap.yaml" command="load" />
+  </node>
+
+  <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map base_link 100" />
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find rrtx)/config/rrtx.rviz" />
+
 </launch>

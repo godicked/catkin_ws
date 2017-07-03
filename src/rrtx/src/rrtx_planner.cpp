@@ -7,7 +7,7 @@
 #include <visualization_msgs/Marker.h>
 
 #include <geometry_msgs/Point.h>   
-#include <geometry_msgs/Point32.h>              
+#include <geometry_msgs/Point32.h>          
 
 //register this planner as a BaseGlobalPlanner plugin
 PLUGINLIB_EXPORT_CLASS(rrt::RRTxPlanner, nav_core::BaseGlobalPlanner)
@@ -136,6 +136,17 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
   poly_pub = n.advertise<visualization_msgs::Marker>("obstacles", 10);
   converter.initialize(n);
   converter.setCostmap2D(&low_res_costmap);
+
+//   costmap_2d::LayeredCostmap *layeredMap = costmap_ros_->getLayeredCostmap();
+//   std::vector< boost::shared_ptr< costmap_2d::Layer > > *layers = layeredMap->getPlugins();
+//   for(auto layer : *layers)
+//   {
+//       if(layer->getName() == "obstacle_layer")
+//       {
+//           layer->deactivate();
+//       }
+//   }
+
 }
 
 
@@ -178,15 +189,13 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     rrtx.init(start.pose, goal.pose);
     rrtx.setMaxDist(5);
     rrtx.grow(1000);
-    rrtx.publish(true, true);
-
     return fillPath(goal, plan);
 }
 
 bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
 {
     RRTx::Path path;
-    bool valid = rrtx.getPath(path);
+    bool valid = rrtx.computePath(path);
     BSplinePathSmoother smoother;
     path = smoother.curvePath(path, costmap_->getResolution());
 
@@ -208,6 +217,8 @@ bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<g
     spath.poses = plan;
     
     path_pub.publish(spath);
+    rrtx.publish(true, true);
+
 
     return true;
 

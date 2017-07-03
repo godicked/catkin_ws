@@ -530,69 +530,124 @@ namespace rrt
         return angle;
      }
 
-     bool RRTx::getPath(Path &path)
+     vector<Node *> RRTx::getPathWithConstraint()
      {
-         ros::Time t = ros::Time::now();
-
-         Node *last = vbot_;
-         Node *v = last->parent;
-
+         int counter = 0;
+         vector<pair<Node *, Node*> > visited;
          vector<Node *> nodes;
-         nodes.push_back(vbot_);
+         Node *last = vbot_;
+         Node *v = vbot_->parent;
+         Node *next = nullptr;
+         double pathCost = 0;
+
+         // the first segment has the robot orientation
+         nodes.push_back(last);
          nodes.push_back(v);
+         ROS_INFO("optimal path size: %.2f", v->lmc);
 
-         while(v->parent != nullptr)
+         while(v->parent != nullptr && pathCost < vbot_->parent->lmc * 5)
          {
-
-            if(constraint)
+            ROS_INFO("counter: %d", counter++);
+            double angle = getAngle(*last, *v, *v->parent);
+            double lmin = min(distance(*last, *v), distance(*v, *v->parent));
+            double k = smoother.getSegmentCurvature(lmin, angle);
+            // if curvature is not respecting the constrainst
+            if(k > kmax)
             {
-                
-                double angle = getAngle(*last, *v, *v->parent);
-                double lmin = min(distance(*last, *v), distance(*v, *v->parent));
-                double k = smoother.getSegmentCurvature(lmin, angle);
-                //ROS_INFO("check contraint angle %.2f, lmin %.2f k %.2f kmax %.2f", angle, lmin, k, kmax);
-                if(k > kmax)
-                {
-                    Node *best = nullptr;
-                    
-                    for(auto n : outN(*v))
-                    {
-                        double new_angle = getAngle(*last, *v, *n);
-                        double new_lmin = min(distance(*last, *v), distance(*v, *n));
-                        double new_k = smoother.getSegmentCurvature(new_lmin, new_angle);
-
-                        if( new_k <= kmax &&
-                            (best == nullptr || best->g > n->g)) 
-                        {
-                            //ROS_INFO("new angle %.2f, new lmin %.2f new k %.2f kmax %.2f", new_angle, new_lmin, new_k, kmax);
-                            best = n;
-                        }
-                    }
-
-                    if(best == nullptr)
-                    {
-                        for(int i = nodes.size() -1; i > 0; i--)
-                        {
-                            if(nodes[i]->g > nodes[i-1]->g)
-                                nodes.pop_back();
-                        }
-                        break;
-                    }
-                    v->parent = best;
-                }
+                next = getNeighborWithConstraint(last, v);
+            }
+            else
+            {
+                next = v->parent;
+            }
+            if(next == nullptr)
+            {
+                ROS_INFO("didnt found best");
+                break;
             }
 
+            nodes.push_back(next);
+            pathCost += distance(*v, *next);
             last = v;
-            v = v->parent;
-            
-            double last_dist = distance(*last, *goal_);
-            double new_dist = distance(*v, *goal_);
-            if(last_dist < 0.5 && new_dist > last_dist)
-                break;
-            
-            nodes.push_back(v);
+            v = next;
          }
 
+         if(v == goal_)
+         {
+             ROS_INFO("Found goal!");
+             nodes.push_back(v);
+         }
+         else
+         {
+             for(int i = nodes.size() - 1; i > 1; i--)
+             {
+                 if(nodes[i]->lmc > nodes[i-1]->lmc)
+                 {
+                     nodes.pop_back();
+                 }
+                 else
+                 {
+                     break;
+                 }
+             }
+         }
+
+         ROS_INFO("End get path with constraint %ld", nodes.size());
+         return nodes;
+     }
+
+     Node *RRTx::getNeighborWithConstraint(Node * last, Node *v)
+     {
+        Node *best = nullptr;
+        for(auto n : outN(*v))
+        {
+            double angle = getAngle(*last, *v, *n);
+            double lmin = min(distance(*last, *v), distance(*v, *n));
+            double k = smoother.getSegmentCurvature(lmin, angle);
+            //ROS_INFO("k: %.2f", k);
+            if( k <= kmax &&
+                (best == nullptr || best->lmc > n->lmc)
+                && n->parent != v) 
+            {
+                //ROS_INFO("new angle %.2f, new lmin %.2f new k %.2f kmax %.2f", new_angle, new_lmin, new_k, kmax);
+                best = n;
+            }
+
+            // if( new_k <= kmax)
+            // {
+            //     ROS_INFO("lmc: %.2f", n->lmc);
+            //     visited.push_back(make_pair(v, n));
+            // }
+        }
+        return best;
+     }
+
+     bool RRTx::computePath(Path &path)
+     {
+         
+         ros::Time t = ros::Time::now();
+         vector<Node *> nodes;
+
+         if(constraint)
+         {
+             nodes = getPathWithConstraint();
+             for(int i = 0; i < nodes.size() -1; i++)
+             {
+                // rewire parent so the path gets recalculated on obstacle change
+                nodes[i]->parent = nodes[i+1];
+             }
+         }
+         else
+         {
+            Node *v = vbot_;
+            // follow optimal path
+            while(v != nullptr)
+            {
+                nodes.push_back(v);
+                v = v->parent;
+            }
+         }
+         
          for(auto node : nodes)
          {
             geometry_msgs::Pose p;
@@ -610,6 +665,8 @@ namespace rrt
          ros::Duration d = ros::Time::now() - t;
          ROS_INFO("Get Path took %.2f seconds", d.toSec());
 
+         lastPath = nodes;  
+
          return  true;
      }
 
@@ -623,12 +680,7 @@ namespace rrt
 
      void RRTx::publish(bool path, bool tree)
      {
-         // Publish Goal
-        if(!marker_pub) {
-            ROS_WARN("rrtx maker_pub not valid");
-            marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 1000);
-        }
-
+         
          visualization_msgs::Marker goal;
          goal.header.frame_id       = map_frame;
          goal.header.stamp          = ros::Time::now();
@@ -710,22 +762,20 @@ namespace rrt
              edges.color.r          = 0.5;
              edges.color.g          = 1;
 
-             Path path;
-             getPath(path);
 
-             for(int i = 0; i < path.size(); i++)
+             for(int i = 0; i < lastPath.size(); i++)
              {
                 geometry_msgs::Point p;
-                 p.x = path[i].position.x;
-                 p.y = path[i].position.y;
+                 p.x = lastPath[i]->x;
+                 p.y = lastPath[i]->y;
 
                  nodes.points.push_back(p);
 
-                 if (i < path.size() - 1)
+                 if (i < lastPath.size() - 1)
                  {
                      edges.points.push_back(p);
-                     p.x = path[i+1].position.x;
-                     p.y = path[i+1].position.y;
+                     p.x = lastPath[i+1]->x;
+                     p.y = lastPath[i+1]->y;
                      edges.points.push_back(p);
                  }
 
@@ -786,6 +836,37 @@ namespace rrt
              marker_pub.publish(nodes);
              marker_pub.publish(edges);
          }
+     }
+
+     void RRTx::publishEdges(vector<pair<Node *, Node *> > edge_vector)
+     {
+        visualization_msgs::Marker edges;
+        edges.header.frame_id  = map_frame;
+        edges.header.stamp     = ros::Time::now();
+        edges.ns               = "visited";
+        edges.id               = 6; 
+        edges.action           = visualization_msgs::Marker::ADD;
+        edges.type             = visualization_msgs::Marker::LINE_LIST;
+
+        edges.scale.x          = 0.02;
+        edges.scale.y          = 0.02;
+
+        edges.color.a          = 1;
+        edges.color.r          = 1;
+
+        for(auto e : edge_vector)
+        {
+            geometry_msgs::Point p1, p2;
+            p1.x = e.first->x;
+            p1.y = e.first->y;
+            p2.x = e.second->x;
+            p2.y = e.second->y;
+
+            edges.points.push_back(p1);
+            edges.points.push_back(p2);
+        }
+
+        marker_pub.publish(edges);
      }
 
 };

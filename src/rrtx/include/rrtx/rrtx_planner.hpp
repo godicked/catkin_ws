@@ -4,6 +4,9 @@
 #include <ros/ros.h>
 #include <costmap_2d/costmap_2d_ros.h>
 #include <costmap_2d/costmap_2d.h>
+#include <costmap_2d/layered_costmap.h>
+#include <costmap_2d/layer.h>
+
 #include <nav_core/base_global_planner.h>
 #include <geometry_msgs/PoseStamped.h>
 

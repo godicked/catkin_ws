@@ -3,7 +3,7 @@
   
   <node pkg="map_server" type="map_server" name="map_server" args="$(find rrtx)/config/map.yaml"></node>
   
-  <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx" output="screen">
+  <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx_node" output="screen">
     <rosparam file="$(find rrtx)/config/costmap.yaml" command="load" />
   </node>
 

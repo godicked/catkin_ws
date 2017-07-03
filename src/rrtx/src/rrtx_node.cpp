@@ -25,9 +25,9 @@ rrt::RRTx *rrtx;
 ros::Publisher path_pub;
 
 int growSize;
-float maxDist;
-float max_steering;
-float wheelbase;
+double maxDist;
+double max_steering;
+double wheelbase;
 bool constraint;
 
 costmap_2d::Costmap2D *cost;
@@ -57,7 +57,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     rrtx->grow(growSize);
 
     rrt::RRTx::Path path;
-    rrtx->getPath(path);
+    rrtx->computePath(path);
     
     rrt::BSplinePathSmoother smoother;
     path = smoother.curvePath(path, 0.05);
@@ -85,19 +85,23 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "rrtx");
+    ros::init(argc, argv, "rrtx_node");
     
-    ros::NodeHandle n;
+    ros::NodeHandle n("~/");
+    n.setParam("bool_param", false);
+
     n.param<int>("grow_size", growSize, 1000);
-    n.param<float>("max_dist", maxDist, 2.0);
+    n.param<double>("max_dist", maxDist, 2.0);
     n.param<bool>("constraint", constraint, true);
-    n.param<float>("max_steering", max_steering, 0.4363323129985824);
-    n.param<float>("wheelbase", wheelbase, 0.26);
+    n.param<double>("max_steering", max_steering, 0.55);
+    n.param<double>("wheelbase", wheelbase, 0.26);
+
+    ROS_INFO("init with grow_size: %d, max_dist: %.2f", growSize, maxDist);
 
     path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
 
-    ros::Subscriber pose_sub = n.subscribe("initialpose", 10, poseCallback);
-    ros::Subscriber goal_sub = n.subscribe("move_base_simple/goal", 10, goalCallback);
+    ros::Subscriber pose_sub = n.subscribe("/initialpose", 10, poseCallback);
+    ros::Subscriber goal_sub = n.subscribe("/move_base_simple/goal", 10, goalCallback);
 
 
     ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("static_map");
@@ -133,30 +137,30 @@ int main(int argc, char **argv)
     rrtx = new rrt::RRTx(cost);
     rrtx->setMaxDist(maxDist);
 
-    costmap_2d::Costmap2D small(
-        200,
-        200,
-        0.1,
-        0,
-        0
-    );
+    // costmap_2d::Costmap2D small(
+    //     200,
+    //     200,
+    //     0.1,
+    //     0,
+    //     0
+    // );
 
-    for(int x = 0; x < small.getSizeInCellsX(); x++)
-    {
-        for(int y = 0; y < small.getSizeInCellsY(); y++)
-        {
-            small.setCost(x, y, cost->getCost(x, y));
-        }
+    // for(int x = 0; x < small.getSizeInCellsX(); x++)
+    // {
+    //     for(int y = 0; y < small.getSizeInCellsY(); y++)
+    //     {
+    //         small.setCost(x, y, cost->getCost(x, y));
+    //     }
 
-    }
+    // }
 
-    costmap_converter::CostmapToPolygonsDBSMCCH converter;
-    converter.initialize(n);
-    converter.setCostmap2D(&small);
-    //converter.startWorker(ros::Rate(1), cost);
-    ros::Time time = ros::Time::now();
-    converter.compute();
-    std::cout << ros::Time::now() - time << std::endl;
+    // costmap_converter::CostmapToPolygonsDBSMCCH converter;
+    // converter.initialize(n);
+    // converter.setCostmap2D(&small);
+    // //converter.startWorker(ros::Rate(1), cost);
+    // ros::Time time = ros::Time::now();
+    // converter.compute();
+    // std::cout << ros::Time::now() - time << std::endl;
 
     ros::spin();
 

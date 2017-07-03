@@ -133,7 +133,7 @@ class RRTx
         void                grow            (unsigned int iteration);
         Node                rootNode        ();
         NodeContainer       getContainer    ();
-        bool                getPath         (Path &path);
+        bool                computePath     (Path &path);
         void                setConstraint   (double steering_angle, double wheelbase);
         void                publish     (bool path = true, bool tree = false);
 
@@ -174,6 +174,10 @@ class RRTx
         bool                queueContains   (Node *v);
         void                updateKey       (Node *v);
         Node               *queuePop        ();
+
+        void                publishEdges(std::vector<std::pair<Node *, Node *> > edge_vector);
+        std::vector<Node *> getPathWithConstraint();
+        Node               *getNeighborWithConstraint(Node *last, Node *v);
 
         //  Member variables
 
@@ -223,6 +227,8 @@ class RRTx
         BSplinePathSmoother smoother;
         bool constraint = false;
         double kmax;
+
+        std::vector<Node *> lastPath;
 
 };
 
