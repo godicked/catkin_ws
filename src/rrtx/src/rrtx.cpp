@@ -5,6 +5,8 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
 
+#include <rrtx/kinematic_path_builder.hpp>
+
 using namespace std;
 using namespace boost;
 
@@ -532,7 +534,6 @@ namespace rrt
 
      vector<Node *> RRTx::getPathWithConstraint()
      {
-         int counter = 0;
          vector<pair<Node *, Node*> > visited;
          vector<Node *> nodes;
          Node *last = vbot_;
@@ -545,9 +546,8 @@ namespace rrt
          nodes.push_back(v);
          ROS_INFO("optimal path size: %.2f", v->lmc);
 
-         while(v->parent != nullptr && pathCost < vbot_->parent->lmc * 5)
+         while(v->parent != nullptr && pathCost < (vbot_->parent->lmc * 5) + 10)
          {
-            ROS_INFO("counter: %d", counter++);
             double angle = getAngle(*last, *v, *v->parent);
             double lmin = min(distance(*last, *v), distance(*v, *v->parent));
             double k = smoother.getSegmentCurvature(lmin, angle);
@@ -574,8 +574,9 @@ namespace rrt
 
          if(v == goal_)
          {
-             ROS_INFO("Found goal!");
+             //ROS_INFO("Found goal!");
              nodes.push_back(v);
+             pathCost += distance(*last, *v);
          }
          else
          {
@@ -592,24 +593,27 @@ namespace rrt
              }
          }
 
-         ROS_INFO("End get path with constraint %ld", nodes.size());
+         ROS_INFO("final path length estimation: %.2f", pathCost);
+         //ROS_INFO("End get path with constraint %ld", nodes.size());
          return nodes;
      }
 
      Node *RRTx::getNeighborWithConstraint(Node * last, Node *v)
      {
         Node *best = nullptr;
+        double bestDist = std::numeric_limits<double>::max();
         for(auto n : outN(*v))
         {
             double angle = getAngle(*last, *v, *n);
             double lmin = min(distance(*last, *v), distance(*v, *n));
             double k = smoother.getSegmentCurvature(lmin, angle);
+            double dist = n->lmc + distance(*v, *n);
             //ROS_INFO("k: %.2f", k);
             if( k <= kmax &&
                 (best == nullptr || best->lmc > n->lmc)
                 && n->parent != v) 
             {
-                //ROS_INFO("new angle %.2f, new lmin %.2f new k %.2f kmax %.2f", new_angle, new_lmin, new_k, kmax);
+                bestDist = dist;
                 best = n;
             }
 
@@ -630,12 +634,14 @@ namespace rrt
 
          if(constraint)
          {
-             nodes = getPathWithConstraint();
-             for(int i = 0; i < nodes.size() -1; i++)
-             {
-                // rewire parent so the path gets recalculated on obstacle change
-                nodes[i]->parent = nodes[i+1];
-             }
+            //  nodes = getPathWithConstraint();
+            //  for(int i = 0; i < nodes.size() -1; i++)
+            //  {
+            //     // rewire parent so the path gets recalculated on obstacle change
+            //     nodes[i]->parent = nodes[i+1];
+            //  }
+            KinematicPathBuilder builder(kmax);
+            nodes = builder.buildPath(vbot_, goal_);
          }
          else
          {

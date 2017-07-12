@@ -205,8 +205,10 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
+add_library(path_lib src/kinematic_path_builder.cpp)
+
 add_library(rrtx_lib src/rrtx.cpp)
-target_link_libraries(rrtx_lib ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} boost_system)
+target_link_libraries(rrtx_lib ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} boost_system path_lib)
 
 add_library(rrtx_planner_lib src/rrtx_planner.cpp)
 target_link_libraries(rrtx_planner_lib rrtx_lib ${costmap_converter_LIBRARIES})
