@@ -5,7 +5,6 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
 
-#include <rrtx/kinematic_path_builder.hpp>
 
 using namespace std;
 using namespace boost;
@@ -21,7 +20,6 @@ namespace rrt
     RRTx::RRTx()
     {
         marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 1000);
-
         nh_.param<string>("map_frame", this->map_frame, "/map");
     }
 
@@ -37,7 +35,7 @@ namespace rrt
 
     void RRTx::setConstraint(double steering_angle, double wheelbase)
     {
-        kmax = smoother.getKmax(steering_angle, wheelbase);
+        builder = KinematicPathBuilder(nh_, wheelbase, steering_angle);
         minDist = wheelbase;
         constraint = true;
     }
@@ -634,14 +632,13 @@ namespace rrt
 
          if(constraint)
          {
-            //  nodes = getPathWithConstraint();
-            //  for(int i = 0; i < nodes.size() -1; i++)
-            //  {
-            //     // rewire parent so the path gets recalculated on obstacle change
-            //     nodes[i]->parent = nodes[i+1];
-            //  }
-            KinematicPathBuilder builder(kmax);
             nodes = builder.buildPath(vbot_, goal_);
+            builder.publishVisited();
+            // rewire parent so the path gets recalculated on obstacle change
+            for(int i = 0; i < nodes.size() -1; i++)
+            {
+                nodes[i]->parent = nodes[i+1];
+            }
          }
          else
          {

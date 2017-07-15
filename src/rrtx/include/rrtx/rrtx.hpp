@@ -18,6 +18,7 @@
 #include <ros/ros.h>
 
 #include <rrtx/rrtx_struct.hpp>
+#include <rrtx/kinematic_path_builder.hpp>
 
 
 namespace bg = boost::geometry;
@@ -190,6 +191,7 @@ class RRTx
         std::string map_frame;
 
         BSplinePathSmoother smoother;
+        KinematicPathBuilder builder;
         bool constraint = false;
         double kmax;
 

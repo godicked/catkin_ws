@@ -206,6 +206,7 @@ include_directories(
 # catkin_add_nosetests(test)
 
 add_library(path_lib src/kinematic_path_builder.cpp)
+target_link_libraries(path_lib ${catkink_LIBRARIES})
 
 add_library(rrtx_lib src/rrtx.cpp)
 target_link_libraries(rrtx_lib ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} boost_system path_lib)
