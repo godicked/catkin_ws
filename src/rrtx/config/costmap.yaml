@@ -4,7 +4,7 @@ costmap:
         - {name: inflation_layer,  type: "costmap_2d::InflationLayer"}
     
     inflation_layer:
-        inflation_radius: 1
+        inflation_radius: 5
         cost_scaling_factor: 200
 
-    footprint: [[-0.1, 0.1], [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1]]
+    footprint: [[-0.2, 0.2], [0.2, 0.2], [0.2, -0.2], [-0.2, -0.2]]

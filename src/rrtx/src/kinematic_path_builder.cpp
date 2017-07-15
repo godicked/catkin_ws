@@ -39,7 +39,7 @@ KinematicPathBuilder::KinematicPathBuilder()
 
 KinematicPathBuilder::KinematicPathBuilder(ros::NodeHandle n, double wheelbase, double max_steering)
 {
-    marker_pub  = n.advertise<visualization_msgs::Marker>("visited", 1000);
+    marker_pub  = n.advertise<visualization_msgs::Marker>("visited", 100);
     kmax = tan(max_steering) / wheelbase;
 }
 
@@ -70,48 +70,42 @@ WaypointSharedPtr KinematicPathBuilder::buildWaypoints(Node *start, Node *goal)
     WaypointSharedPtr nextw( new Waypoint(start->parent, startw ));
     nextw->cost = d(*nextw->origin->node, *nextw->node) + nextw->origin->cost;
     insertNeighbors(nextw);
-    WaypointSharedPtr nearest;
-    ros::Rate rate(100);
-    while(!queue.empty())
+    WaypointSharedPtr end = nextw;
+
+    while( !queue.empty())
     {
         WaypointSharedPtr w = queue.top();
-        //ROS_INFO("while.. %d", queue.size());
-        visited.push_back(make_pair(w->origin->node, w->node));
-        publishVisited();  
+        queue.pop();
+
         if(curvature(w) < kmax)
         {
-            if(queue.top()->node == goal)
+            visited.push_back(make_pair(w->origin->node, w->node));
+            publishVisited();
+            if(w->node == goal)
             {
-                ROS_INFO("found goal");
+                end = w;
                 break;
             }
             insertNeighbors(w);
         }
-        queue.pop(); 
-        rate.sleep();      
+
     }
 
-    if(!queue.empty() && queue.top()->node == goal)
-    {
-        nearest = queue.top();
-    }
 
     ROS_INFO("Build Waypoints end");
     root = startw;
-    return nearest;
+    return end;
 }
 
 void KinematicPathBuilder::insertNeighbors(WaypointSharedPtr w)
 {
-    int count = 0;
     for(auto n : outN(*w->node))
     {   
         WaypointSharedPtr next( new Waypoint(n, w) );
         next->cost = w->cost + d(*w->node, *n);
-        count++;
+
         queue.push(next);
     }
-    ROS_INFO("insert %d n", count);
 }
 
 // void KinematicPathBuilder::propagateDeadEnd(Waypoint *w)
