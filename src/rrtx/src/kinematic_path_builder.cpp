@@ -25,7 +25,7 @@ vector<Node *> outN(Node v)
     return out;
 }
 
-int depth(Waypoint *w, Waypoint *root)
+int depth(WaypointSharedPtr w, WaypointSharedPtr root)
 {
     int counter = 0;
     for(; w != root; w = w->origin, counter++){}
@@ -39,19 +39,19 @@ KinematicPathBuilder::KinematicPathBuilder()
 
 KinematicPathBuilder::KinematicPathBuilder(ros::NodeHandle n, double wheelbase, double max_steering)
 {
-    marker_pub  = n.advertise<visualization_msgs::Marker>("visited", 100);
+    marker_pub  = n.advertise<visualization_msgs::Marker>("visited", 1000);
     kmax = tan(max_steering) / wheelbase;
 }
 
 vector<Node *> KinematicPathBuilder::buildPath(Node *start, Node *goal)
 {
-    Waypoint *w = buildWaypoints(start, goal);
+    WaypointSharedPtr w = buildWaypoints(start, goal);
     vector<Node *> path;
     
-    while(w != nullptr)
+    while(w)
     {
         ROS_INFO("set path..");
-        path.push_back(w->pos);
+        path.push_back(w->node);
         w = w->origin;
     }
     ROS_INFO("reverse");
@@ -60,62 +60,38 @@ vector<Node *> KinematicPathBuilder::buildPath(Node *start, Node *goal)
     return path;
 }
 
-Waypoint *KinematicPathBuilder::buildWaypoints(Node *start, Node *goal)
+WaypointSharedPtr KinematicPathBuilder::buildWaypoints(Node *start, Node *goal)
 {
     queue.clear();
     root.reset();
     visited.clear();
 
     WaypointSharedPtr startw( new Waypoint(start));
-    WaypointSharedPtr nextw( new Waypoint(start->parent, startw.get()) );
-
-    startw->pos = start;
-    startw->neighbors.push_back(nextw);
-    startw->computed = true;
-
-    nextw->pos = start->parent;
-    nextw->origin = startw.get();
-    nextw->cost = d(*nextw->origin->pos, *nextw->pos) + nextw->origin->cost;
-    
-
-    queue.push(nextw.get());
-    Waypoint *nearest = nullptr;
-
-    while(  !queue.empty() &&
-            queue.top()->pos != goal && 
-            queue.top()->cost < 3 * start->lmc)
+    WaypointSharedPtr nextw( new Waypoint(start->parent, startw ));
+    nextw->cost = d(*nextw->origin->node, *nextw->node) + nextw->origin->cost;
+    insertNeighbors(nextw);
+    WaypointSharedPtr nearest;
+    ros::Rate rate(100);
+    while(!queue.empty())
     {
-        Waypoint *w = queue.top();
-        queue.pop();
-
-        //ROS_INFO("depth %d", depth(w, startw.get()));
-        if(!nearest || nearest->pos->lmc > w->pos->lmc)
+        WaypointSharedPtr w = queue.top();
+        //ROS_INFO("while.. %d", queue.size());
+        visited.push_back(make_pair(w->origin->node, w->node));
+        publishVisited();  
+        if(curvature(w) < kmax)
         {
-            nearest = w;
+            if(queue.top()->node == goal)
+            {
+                ROS_INFO("found goal");
+                break;
+            }
+            insertNeighbors(w);
         }
-        Waypoint *best = findBestNext(w);
-        Waypoint *origin = w->origin;
-        //ROS_INFO("n: %d", w->n);
-        if(w->neighbors.empty())
-        {
-            //ROS_INFO("propagate dead end");
-            propagateDeadEnd(w);
-        }
-        if(!best)
-        {
-            //ROS_INFO("push origin");
-            queue.push(origin);
-        }
-        else
-        {
-            queue.push(origin);
-            queue.push(best);
-        }
-        
-        publishVisited();        
+        queue.pop(); 
+        rate.sleep();      
     }
 
-    if(!queue.empty() && queue.top()->pos == goal)
+    if(!queue.empty() && queue.top()->node == goal)
     {
         nearest = queue.top();
     }
@@ -125,122 +101,135 @@ Waypoint *KinematicPathBuilder::buildWaypoints(Node *start, Node *goal)
     return nearest;
 }
 
-void KinematicPathBuilder::propagateDeadEnd(Waypoint *w)
+void KinematicPathBuilder::insertNeighbors(WaypointSharedPtr w)
 {
-    Waypoint *origin = w->origin;
-    // remove w from possible neighbors
-    //ROS_INFO("size: %ld", origin->neighbors.size());
-    auto n = &origin->neighbors;
-    n->erase(
-        remove_if(n->begin(), n->end(), [w](const WaypointSharedPtr x){ return x.get() == w; }),
-        n->end()
-    );
-    origin->n--;
-    //ROS_INFO("size: %ld", origin->neighbors.size());
-    if(!origin->computed && origin->neighbors.empty())
-    {
-        orderNeighbors(origin);
-    }
-}
-
-void KinematicPathBuilder::orderNeighbors(Waypoint *w)
-{
-    //ROS_INFO("order neighbors");
-    vector<WaypointSharedPtr> neighbors;
-
-    for(auto n : outN(*w->pos))
-    {
-        if(n == w->pos->parent) continue;
-        
+    int count = 0;
+    for(auto n : outN(*w->node))
+    {   
         WaypointSharedPtr next( new Waypoint(n, w) );
-        next->cost = w->cost + d(*w->pos, *n);
-
-        neighbors.push_back(next);
+        next->cost = w->cost + d(*w->node, *n);
+        count++;
+        queue.push(next);
     }
-
-    sort(neighbors.begin(), neighbors.end(), [](const WaypointSharedPtr w1, const WaypointSharedPtr &w2) { 
-        return w1->cost + w1->pos->lmc < w2->cost + w2->pos->lmc; 
-    });
-
-    w->neighbors.insert(w->neighbors.end(), neighbors.begin(), neighbors.end());
-    w->computed = true;
-    //ROS_INFO("end order neighbors");
+    ROS_INFO("insert %d n", count);
 }
 
+// void KinematicPathBuilder::propagateDeadEnd(Waypoint *w)
+// {
+//     Waypoint *origin = w->origin;
+//     // remove w from nodesible neighbors
+//     //ROS_INFO("size: %ld", origin->neighbors.size());
+//     auto n = &origin->neighbors;
+//     n->erase(
+//         remove_if(n->begin(), n->end(), [w](const WaypointSharedPtr x){ return x.get() == w; }),
+//         n->end()
+//     );
+//     origin->n--;
+//     //ROS_INFO("size: %ld", origin->neighbors.size());
+//     if(!origin->computed && origin->neighbors.empty())
+//     {
+//         orderNeighbors(origin);
+//     }
+// }
 
-Waypoint *KinematicPathBuilder::findBestNext(Waypoint *w)
-{
-    //ROS_INFO("find best next");
+// void KinematicPathBuilder::orderNeighbors(Waypoint *w)
+// {
+//     //ROS_INFO("order neighbors");
+//     vector<WaypointSharedPtr> neighbors;
 
-    if(!w->computed && w->neighbors.empty())
-    {
-        //ROS_INFO("set parent");
-        WaypointSharedPtr parent( new Waypoint(w->pos->parent, w) );
-        parent->cost = w->cost + d(*w->pos, *parent->pos);
-        w->neighbors.push_back(parent);   
-    }
-
-    //ROS_INFO("iterate over neighbors");
-    int i;
-    for(i = w->n; i < w->neighbors.size(); i++)
-    {
-        //ROS_INFO("for..");
-        auto n = w->neighbors[i];
+//     for(auto n : outN(*w->node))
+//     {
+//         if(n == w->node->parent) continue;
         
-        //ROS_INFO("while..");
-        if(curvature(*w->origin->pos, *w->pos, *n->pos) < kmax)
-        {
-            //ROS_INFO("curvature ok");
-            visited.push_back(make_pair(w->pos, n->pos));
-            break;
-        }
-        //ROS_INFO("curvature not ok");
+//         WaypointSharedPtr next( new Waypoint(n, w) );
+//         next->cost = w->cost + d(*w->node, *n);
 
-        if(!w->computed && i+1 == w->neighbors.size())
-        {
-            orderNeighbors(w);
-        }
-    }
-    //ROS_INFO("end over iterate");
+//         neighbors.push_back(next);
+//     }
 
-    auto first = w->neighbors.begin() + w->n;
-    auto last = w->neighbors.begin() + i;
-    if(first < last)
-    {
-        w->neighbors.erase(first, last);
-        //ROS_INFO("erase");
-    }
-    if(w->n >= w->neighbors.size())
-    {
-        //ROS_INFO("end best next nullptr");
-        return nullptr;
-    }
+//     sort(neighbors.begin(), neighbors.end(), [](const WaypointSharedPtr w1, const WaypointSharedPtr &w2) { 
+//         return w1->cost + w1->node->lmc < w2->cost + w2->node->lmc; 
+//     });
 
-    Waypoint *best = w->neighbors[w->n].get();
-    w->n++;
-    //ROS_INFO("end best next");
-    return best;
-}
+//     w->neighbors.insert(w->neighbors.end(), neighbors.begin(), neighbors.end());
+//     w->computed = true;
+//     //ROS_INFO("end order neighbors");
+// }
+
+
+// Waypoint *KinematicPathBuilder::findBestNext(Waypoint *w)
+// {
+//     //ROS_INFO("find best next");
+
+//     if(!w->computed && w->neighbors.empty())
+//     {
+//         //ROS_INFO("set parent");
+//         WaypointSharedPtr parent( new Waypoint(w->node->parent, w) );
+//         parent->cost = w->cost + d(*w->node, *parent->node);
+//         w->neighbors.push_back(parent);   
+//     }
+
+//     //ROS_INFO("iterate over neighbors");
+//     int i;
+//     for(i = w->n; i < w->neighbors.size(); i++)
+//     {
+//         //ROS_INFO("for..");
+//         auto n = w->neighbors[i];
+        
+//         //ROS_INFO("while..");
+//         if(curvature(*w->origin->node, *w->node, *n->node) < kmax)
+//         {
+//             //ROS_INFO("curvature ok");
+//             visited.push_back(make_pair(w->node, n->node));
+//             break;
+//         }
+//         //ROS_INFO("curvature not ok");
+
+//         if(!w->computed && i+1 == w->neighbors.size())
+//         {
+//             orderNeighbors(w);
+//         }
+//     }
+//     //ROS_INFO("end over iterate");
+
+//     auto first = w->neighbors.begin() + w->n;
+//     auto last = w->neighbors.begin() + i;
+//     if(first < last)
+//     {
+//         w->neighbors.erase(first, last);
+//         //ROS_INFO("erase");
+//     }
+//     if(w->n >= w->neighbors.size())
+//     {
+//         //ROS_INFO("end best next nullptr");
+//         return nullptr;
+//     }
+
+//     Waypoint *best = w->neighbors[w->n].get();
+//     w->n++;
+//     //ROS_INFO("end best next");
+//     return best;
+// }
 
 // WaypointSharedPtr KinematicPathBuilder::findBestAlternative(Waypoint *w)
 // {
 //     WaypointSharedPtr best;
     
-//     for(auto n : outN(*w->pos))
+//     for(auto n : outN(*w->node))
 //     {
-//         if(n == w->pos->parent) continue;
+//         if(n == w->node->parent) continue;
 
-//         if(curvature(*w->origin->pos, *w->pos, *n) < kmax)
+//         if(curvature(*w->origin->node, *w->node, *n) < kmax)
 //         {
 //             WaypointSharedPtr next( new Waypoint );
-//             next->pos = n;
+//             next->node = n;
 //             next->origin = w;
-//             next->cost = w->cost + d(*w->pos, *n);
+//             next->cost = w->cost + d(*w->node, *n);
 //             w->neighbors.push_back(next);
-//             visited.push_back(make_pair(w->pos, next->pos));
+//             visited.push_back(make_pair(w->node, next->node));
 //             queue.push(next);
 
-//             if(!best || (best->cost + best->pos->lmc) > (next->cost + next->pos->lmc))
+//             if(!best || (best->cost + best->node->lmc) > (next->cost + next->node->lmc))
 //             {
 //                 best = next;
 //             }
@@ -268,7 +257,10 @@ double KinematicPathBuilder::angle(Node a, Node b, Node c)
 
     return angle;
 }
-
+double KinematicPathBuilder::curvature(WaypointSharedPtr w)
+{
+    return curvature(*w->origin->origin->node, *w->origin->node, *w->node);
+}
 double KinematicPathBuilder::curvature(Node a, Node b, Node c)
 {
     double alpha = angle(a, b, c);

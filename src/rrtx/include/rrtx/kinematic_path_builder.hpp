@@ -18,27 +18,24 @@ typedef boost::shared_ptr<Waypoint> WaypointSharedPtr;
 
 struct Waypoint
 {
-    Node *pos = nullptr;
-    Waypoint *origin = nullptr;
-    std::vector<WaypointSharedPtr> neighbors;
+    Node *node = nullptr;
+    WaypointSharedPtr origin;
     double cost = 0;
-    bool computed = false;
-    int n = 0;
-    Waypoint(Node *n) : pos(n)
+    Waypoint(Node *n) : node(n)
     {}
-    Waypoint(Node *n, Waypoint *origin) : pos(n), origin(origin)
+    Waypoint(Node *n, WaypointSharedPtr origin) : node(n), origin(origin)
     {}
 };
 
 
-double waypoint_key(const Waypoint *w) 
+double waypoint_key(const WaypointSharedPtr w) 
 {
-    return w->cost + w->pos->lmc;
+    return w->cost + w->node->lmc;
 }
 
 struct waypoint_compare
 {
-    const bool operator()(const Waypoint *w1, const Waypoint *w2) const
+    const bool operator()(const WaypointSharedPtr w1, const WaypointSharedPtr w2) const
     {
         return waypoint_key(w1) > waypoint_key(w2);
     }
@@ -47,7 +44,7 @@ struct waypoint_compare
 
 class KinematicPathBuilder
 {
-    typedef boost::heap::fibonacci_heap<Waypoint *, boost::heap::compare<waypoint_compare> > Queue;
+    typedef boost::heap::fibonacci_heap<WaypointSharedPtr, boost::heap::compare<waypoint_compare> > Queue;
     
     public:
         KinematicPathBuilder();
@@ -56,12 +53,14 @@ class KinematicPathBuilder
         void publishVisited();
 
     private:
-        Waypoint *buildWaypoints(Node *start, Node *goal);
-        Waypoint *findBestNext(Waypoint *w);
-        void propagateDeadEnd(Waypoint *w);
+        WaypointSharedPtr buildWaypoints(Node *start, Node *goal);
+        // Waypoint *findBestNext(Waypoint *w);
+        void insertNeighbors(WaypointSharedPtr w);
+        // void propagateDeadEnd(Waypoint *w);
         double angle(Node a, Node b, Node c);
         double curvature(Node a, Node b, Node c);
-        void orderNeighbors(Waypoint *w);
+        double curvature(WaypointSharedPtr w);
+        // void orderNeighbors(Waypoint *w);
 
 
         Queue queue;
