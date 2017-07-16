@@ -45,11 +45,12 @@ struct waypoint_compare
 class KinematicPathBuilder
 {
     typedef boost::heap::fibonacci_heap<WaypointSharedPtr, boost::heap::compare<waypoint_compare> > Queue;
+    typedef boost::unordered_map<NodePair, bool, hash_node_pair, node_pair_equal> VisitedHash;
     
     public:
         KinematicPathBuilder();
         KinematicPathBuilder(ros::NodeHandle n, double wheelbase, double max_steering);
-        std::vector<Node *> buildPath(Node *start, Node *goal);
+        std::vector<Node *> buildPath(Node *start, Node *goal, TrajectoryHash *trajectories);
         void publishVisited();
 
     private:
@@ -58,8 +59,9 @@ class KinematicPathBuilder
         void insertNeighbors(WaypointSharedPtr w);
         // void propagateDeadEnd(Waypoint *w);
         double angle(Node a, Node b, Node c);
-        double curvature(Node a, Node b, Node c);
+        double curvature(Node *a, Node *b, Node *c);
         double curvature(WaypointSharedPtr w);
+        double cost(Node *a, Node *b);
         // void orderNeighbors(Waypoint *w);
 
 
@@ -68,6 +70,8 @@ class KinematicPathBuilder
         WaypointSharedPtr root;
         std::vector<std::pair<Node *, Node *> > visited;
         ros::Publisher marker_pub;
+        TrajectoryHash *t;
+        VisitedHash trajVisited;
 
 
 

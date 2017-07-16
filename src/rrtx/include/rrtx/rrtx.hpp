@@ -7,7 +7,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/geometry.hpp>
 #include <boost/geometry/index/rtree.hpp>
-#include <boost/unordered_map.hpp>
+
 
 #include <costmap_2d/costmap_2d.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -31,33 +31,6 @@ namespace rrt
 {
 
 
-struct Trajectory
-{
-    Node *source;
-    Node *target;
-
-    double cost;
-};
-
-typedef std::pair<Node *, Node *> NodePair;
-struct hash_node_pair
-{
-    std::size_t operator()(const NodePair &p)
-    {
-        std::size_t seed = 0;
-        boost::hash_combine(seed, p.first);
-        boost::hash_combine(seed, p.second);
-        return seed;
-    }
-};
-
-struct node_compare
-{
-    bool operator()(const Node *v1, const Node *v2) const
-    {
-        return v1->key > v2->key;
-    }
-};
 
 
 class RRTx
@@ -79,7 +52,6 @@ class RRTx
 
     typedef boost::unordered_map<Node *, handle_t> NodeHash;
 
-    typedef boost::unordered_map<NodePair, Trajectory, hash_node_pair> TrajectoryHash;
 
     public:
 
@@ -119,7 +91,7 @@ class RRTx
         Node                saturate        (Node v, Node u);
         void                findParent      (Node *v, std::vector<Node *>);
         std::vector<Node *> findTrajectories(Node *v, std::vector<Node *> nodes);
-        bool                trajectoryExist (Node v, Node u);
+        bool                trajectoryExist (Node *v, Node *u);
         void                extend          (Node *v);
         void                cullNeighbors   (Node *v);
         void                verrifyQueue    (Node *v);
@@ -132,6 +104,7 @@ class RRTx
         bool                isOutOfBound    (unsigned int mx, unsigned int my);
         void                grow            ();
         double              getAngle        (Node a, Node b, Node c);
+        double              cost            (Node *a, Node *b);
 
         //  Priority Queue related functions
         void                queueInsert     (Node *v);
@@ -150,7 +123,7 @@ class RRTx
         //  Container to hold the Node structure
         NodeContainer nodeContainer;
         //  Hash container for trajectories between neighbors
-        TrajectoryHash trajectoryHash;
+        TrajectoryHash trajectories;
 
         //  R* Tree for efficient spacial k nearest neighbors (KNN) search
         //  and helps for the radius search

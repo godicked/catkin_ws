@@ -185,9 +185,9 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
 {
     costmap_2d::Costmap2D copy = *costmap_;
     rrtx.setCostmap(&copy);
-    rrtx.setConstraint(0.4363323129985824,0.3);
+    rrtx.setConstraint(0.55, 0.26);
     rrtx.init(start.pose, goal.pose);
-    rrtx.setMaxDist(5);
+    rrtx.setMaxDist(2);
     rrtx.grow(1000);
     return fillPath(goal, plan);
 }

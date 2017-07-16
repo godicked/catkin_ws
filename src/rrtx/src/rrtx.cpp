@@ -154,29 +154,36 @@ namespace rrt
         
     }
 
+    double RRTx::cost(Node *a, Node *b)
+    {
+        return trajectories[make_pair(a,b)].cost;
+    }
+
     vector<Node *> RRTx::findTrajectories(Node *v, vector<Node *> nodes)
     {
         vector<Node *> exist;
         for(auto u : nodes)
         {
-            if(trajectoryExist(*v, *u))
+            if(trajectoryExist(v, u))
+            {
                 exist.push_back(u);
+            }
         }
         return exist;
     }
 
-    bool RRTx::trajectoryExist(Node v, Node u)
+    bool RRTx::trajectoryExist(Node *v, Node *u)
     {
-        double dist = distance(v, u);
+        double dist = distance(*v, *u);
 
-        double dx = u.x - v.x;
-        double dy = u.y - v.y;
+        double dx = u->x - v->x;
+        double dy = u->y - v->y;
 
         double resolution = costmap_->getResolution();
         for(double i = 0; i < dist - resolution; i += resolution)
         {
-            double wx = v.x + dx * (i / dist);
-            double wy = v.y + dy * (i / dist);
+            double wx = v->x + dx * (i / dist);
+            double wy = v->y + dy * (i / dist);
            
            unsigned int mx, my;
             costmap_->worldToMap(wx, wy, mx, my);
@@ -186,6 +193,7 @@ namespace rrt
             if(cost > 50)
                 return false;
         }
+        trajectories[make_pair(v,u)] = Trajectory(u, v, dist);
         return true;
     }
 
@@ -289,7 +297,7 @@ namespace rrt
             {
                 if(u == v->parent)
                     continue;
-                double dist = distance(*u, *v) + v->lmc;
+                double dist = cost(u, v) + v->lmc;
                 if(u->lmc > dist)
                 {
                     u->lmc      = dist;
@@ -335,10 +343,10 @@ namespace rrt
             if(u->parent != v)
                 continue;
 
-            double dist = distance(*v, *u) + u->lmc;
+            double dist = cost(v, u) + u->lmc;
             if(v->lmc > dist)
             {
-                p       = u;
+                p = u;
             }
         }
 
@@ -474,6 +482,7 @@ namespace rrt
          queue.clear();
          nodeHash.clear();
          nodeContainer.clear();
+         trajectories.clear();
          
          //gen = boost::random::mt19937(time(0));
          
@@ -530,99 +539,99 @@ namespace rrt
         return angle;
      }
 
-     vector<Node *> RRTx::getPathWithConstraint()
-     {
-         vector<pair<Node *, Node*> > visited;
-         vector<Node *> nodes;
-         Node *last = vbot_;
-         Node *v = vbot_->parent;
-         Node *next = nullptr;
-         double pathCost = 0;
+    //  vector<Node *> RRTx::getPathWithConstraint()
+    //  {
+    //      vector<pair<Node *, Node*> > visited;
+    //      vector<Node *> nodes;
+    //      Node *last = vbot_;
+    //      Node *v = vbot_->parent;
+    //      Node *next = nullptr;
+    //      double pathCost = 0;
 
-         // the first segment has the robot orientation
-         nodes.push_back(last);
-         nodes.push_back(v);
-         ROS_INFO("optimal path size: %.2f", v->lmc);
+    //      // the first segment has the robot orientation
+    //      nodes.push_back(last);
+    //      nodes.push_back(v);
+    //      ROS_INFO("optimal path size: %.2f", v->lmc);
 
-         while(v->parent != nullptr && pathCost < (vbot_->parent->lmc * 5) + 10)
-         {
-            double angle = getAngle(*last, *v, *v->parent);
-            double lmin = min(distance(*last, *v), distance(*v, *v->parent));
-            double k = smoother.getSegmentCurvature(lmin, angle);
-            // if curvature is not respecting the constrainst
-            if(k > kmax)
-            {
-                next = getNeighborWithConstraint(last, v);
-            }
-            else
-            {
-                next = v->parent;
-            }
-            if(next == nullptr)
-            {
-                ROS_INFO("didnt found best");
-                break;
-            }
+    //      while(v->parent != nullptr && pathCost < (vbot_->parent->lmc * 5) + 10)
+    //      {
+    //         double angle = getAngle(*last, *v, *v->parent);
+    //         double lmin = min(distance(*last, *v), distance(*v, *v->parent));
+    //         double k = smoother.getSegmentCurvature(lmin, angle);
+    //         // if curvature is not respecting the constrainst
+    //         if(k > kmax)
+    //         {
+    //             next = getNeighborWithConstraint(last, v);
+    //         }
+    //         else
+    //         {
+    //             next = v->parent;
+    //         }
+    //         if(next == nullptr)
+    //         {
+    //             ROS_INFO("didnt found best");
+    //             break;
+    //         }
 
-            nodes.push_back(next);
-            pathCost += distance(*v, *next);
-            last = v;
-            v = next;
-         }
+    //         nodes.push_back(next);
+    //         pathCost += distance(*v, *next);
+    //         last = v;
+    //         v = next;
+    //      }
 
-         if(v == goal_)
-         {
-             //ROS_INFO("Found goal!");
-             nodes.push_back(v);
-             pathCost += distance(*last, *v);
-         }
-         else
-         {
-             for(int i = nodes.size() - 1; i > 1; i--)
-             {
-                 if(nodes[i]->lmc > nodes[i-1]->lmc)
-                 {
-                     nodes.pop_back();
-                 }
-                 else
-                 {
-                     break;
-                 }
-             }
-         }
+    //      if(v == goal_)
+    //      {
+    //          //ROS_INFO("Found goal!");
+    //          nodes.push_back(v);
+    //          pathCost += distance(*last, *v);
+    //      }
+    //      else
+    //      {
+    //          for(int i = nodes.size() - 1; i > 1; i--)
+    //          {
+    //              if(nodes[i]->lmc > nodes[i-1]->lmc)
+    //              {
+    //                  nodes.pop_back();
+    //              }
+    //              else
+    //              {
+    //                  break;
+    //              }
+    //          }
+    //      }
 
-         ROS_INFO("final path length estimation: %.2f", pathCost);
-         //ROS_INFO("End get path with constraint %ld", nodes.size());
-         return nodes;
-     }
+    //      ROS_INFO("final path length estimation: %.2f", pathCost);
+    //      //ROS_INFO("End get path with constraint %ld", nodes.size());
+    //      return nodes;
+    //  }
 
-     Node *RRTx::getNeighborWithConstraint(Node * last, Node *v)
-     {
-        Node *best = nullptr;
-        double bestDist = std::numeric_limits<double>::max();
-        for(auto n : outN(*v))
-        {
-            double angle = getAngle(*last, *v, *n);
-            double lmin = min(distance(*last, *v), distance(*v, *n));
-            double k = smoother.getSegmentCurvature(lmin, angle);
-            double dist = n->lmc + distance(*v, *n);
-            //ROS_INFO("k: %.2f", k);
-            if( k <= kmax &&
-                (best == nullptr || best->lmc > n->lmc)
-                && n->parent != v) 
-            {
-                bestDist = dist;
-                best = n;
-            }
+    //  Node *RRTx::getNeighborWithConstraint(Node * last, Node *v)
+    //  {
+    //     Node *best = nullptr;
+    //     double bestDist = std::numeric_limits<double>::max();
+    //     for(auto n : outN(*v))
+    //     {
+    //         double angle = getAngle(*last, *v, *n);
+    //         double lmin = min(distance(*last, *v), distance(*v, *n));
+    //         double k = smoother.getSegmentCurvature(lmin, angle);
+    //         double dist = n->lmc + distance(*v, *n);
+    //         //ROS_INFO("k: %.2f", k);
+    //         if( k <= kmax &&
+    //             (best == nullptr || best->lmc > n->lmc)
+    //             && n->parent != v) 
+    //         {
+    //             bestDist = dist;
+    //             best = n;
+    //         }
 
-            // if( new_k <= kmax)
-            // {
-            //     ROS_INFO("lmc: %.2f", n->lmc);
-            //     visited.push_back(make_pair(v, n));
-            // }
-        }
-        return best;
-     }
+    //         // if( new_k <= kmax)
+    //         // {
+    //         //     ROS_INFO("lmc: %.2f", n->lmc);
+    //         //     visited.push_back(make_pair(v, n));
+    //         // }
+    //     }
+    //     return best;
+    //  }
 
      bool RRTx::computePath(Path &path)
      {
@@ -632,7 +641,7 @@ namespace rrt
 
          if(constraint)
          {
-            nodes = builder.buildPath(vbot_, goal_);
+            nodes = builder.buildPath(vbot_, goal_, &trajectories);
             builder.publishVisited();
             // rewire parent so the path gets recalculated on obstacle change
             for(int i = 0; i < nodes.size() -1; i++)

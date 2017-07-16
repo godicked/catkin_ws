@@ -4,6 +4,8 @@
 #include <limits>
 #include <stdlib.h>
 #include <vector>
+#include <boost/unordered_map.hpp>
+
 
 namespace rrt
 {
@@ -43,6 +45,47 @@ struct Node
     std::vector<Node *> inNr;
     std::vector<Node *> outNr; 
 };
+
+struct Trajectory
+{
+    Node *source;
+    Node *target;
+
+    double cost;
+    Trajectory(){}
+    Trajectory(Node *a, Node *b, double trajCost): source(a), target(b), cost(trajCost){}
+};
+typedef std::pair<Node *, Node *> NodePair;
+struct hash_node_pair
+{
+    std::size_t operator()(const NodePair &p) const
+    {
+        std::size_t seed = 0;
+        seed += boost::hash<Node *>()(p.first);
+        seed += boost::hash<Node *>()(p.second);
+        return seed;
+    }
+};
+
+struct node_pair_equal
+{
+    bool operator()(const NodePair &p1, const NodePair &p2) const
+    {
+        return  p1.first == p2.first && p1.second == p2.second || 
+                p1.first == p2.second && p1.second == p2.first;
+    }
+};
+
+struct node_compare
+{
+    bool operator()(const Node *v1, const Node *v2) const
+    {
+        return v1->key > v2->key;
+    }
+};
+
+typedef boost::unordered_map<NodePair, Trajectory, hash_node_pair, node_pair_equal> TrajectoryHash;
+
 
 }; // namespace rrt
 

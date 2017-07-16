@@ -4,13 +4,17 @@
 #include <visualization_msgs/Marker.h>
 #include <rrtx/kinematic_path_builder.hpp>
 
+
+
+
+
 using namespace std;
 
 namespace rrt
 {
 
 
-double d(Node v, Node u)
+double dist(Node v, Node u)
 {
     double dx2 = (v.x - u.x) * (v.x - u.x);
     double dy2 = (v.y - u.y) * (v.y - u.y);
@@ -43,8 +47,9 @@ KinematicPathBuilder::KinematicPathBuilder(ros::NodeHandle n, double wheelbase, 
     kmax = tan(max_steering) / wheelbase;
 }
 
-vector<Node *> KinematicPathBuilder::buildPath(Node *start, Node *goal)
+vector<Node *> KinematicPathBuilder::buildPath(Node *start, Node *goal, TrajectoryHash *trajectories)
 {
+    t = trajectories;
     WaypointSharedPtr w = buildWaypoints(start, goal);
     vector<Node *> path;
     
@@ -57,6 +62,7 @@ vector<Node *> KinematicPathBuilder::buildPath(Node *start, Node *goal)
     ROS_INFO("reverse");
     reverse(path.begin(), path.end());
     ROS_INFO("path length %ld", path.size());
+    t = nullptr;
     return path;
 }
 
@@ -65,10 +71,11 @@ WaypointSharedPtr KinematicPathBuilder::buildWaypoints(Node *start, Node *goal)
     queue.clear();
     root.reset();
     visited.clear();
+    trajVisited.clear();
 
     WaypointSharedPtr startw( new Waypoint(start));
     WaypointSharedPtr nextw( new Waypoint(start->parent, startw ));
-    nextw->cost = d(*nextw->origin->node, *nextw->node) + nextw->origin->cost;
+    nextw->cost = cost(nextw->origin->node, nextw->node) + nextw->origin->cost;
     insertNeighbors(nextw);
     WaypointSharedPtr end = nextw;
 
@@ -76,6 +83,11 @@ WaypointSharedPtr KinematicPathBuilder::buildWaypoints(Node *start, Node *goal)
     {
         WaypointSharedPtr w = queue.top();
         queue.pop();
+
+        if(trajVisited.find(make_pair(w->origin->node, w->node)) != trajVisited.end())
+        {
+            continue;
+        }
 
         if(curvature(w) < kmax)
         {
@@ -87,6 +99,7 @@ WaypointSharedPtr KinematicPathBuilder::buildWaypoints(Node *start, Node *goal)
                 break;
             }
             insertNeighbors(w);
+            trajVisited[make_pair(w->origin->node, w->node)] = true;
         }
 
     }
@@ -102,10 +115,20 @@ void KinematicPathBuilder::insertNeighbors(WaypointSharedPtr w)
     for(auto n : outN(*w->node))
     {   
         WaypointSharedPtr next( new Waypoint(n, w) );
-        next->cost = w->cost + d(*w->node, *n);
+        next->cost = w->cost + cost(w->node, n);
 
         queue.push(next);
     }
+}
+
+double KinematicPathBuilder::cost(Node *v, Node *u)
+{
+    if(t->find(make_pair(v, u)) != t->end())
+    {
+        return (*t)[make_pair(v, u)].cost;
+    }
+    //ROS_WARN("no traj %d", t->size());
+    return dist(*v, *u);
 }
 
 // void KinematicPathBuilder::propagateDeadEnd(Waypoint *w)
@@ -136,7 +159,7 @@ void KinematicPathBuilder::insertNeighbors(WaypointSharedPtr w)
 //         if(n == w->node->parent) continue;
         
 //         WaypointSharedPtr next( new Waypoint(n, w) );
-//         next->cost = w->cost + d(*w->node, *n);
+//         next->cost = w->cost + cost(*w->node, *n);
 
 //         neighbors.push_back(next);
 //     }
@@ -159,7 +182,7 @@ void KinematicPathBuilder::insertNeighbors(WaypointSharedPtr w)
 //     {
 //         //ROS_INFO("set parent");
 //         WaypointSharedPtr parent( new Waypoint(w->node->parent, w) );
-//         parent->cost = w->cost + d(*w->node, *parent->node);
+//         parent->cost = w->cost + cost(*w->node, *parent->node);
 //         w->neighbors.push_back(parent);   
 //     }
 
@@ -218,7 +241,7 @@ void KinematicPathBuilder::insertNeighbors(WaypointSharedPtr w)
 //             WaypointSharedPtr next( new Waypoint );
 //             next->node = n;
 //             next->origin = w;
-//             next->cost = w->cost + d(*w->node, *n);
+//             next->cost = w->cost + cost(*w->node, *n);
 //             w->neighbors.push_back(next);
 //             visited.push_back(make_pair(w->node, next->node));
 //             queue.push(next);
@@ -253,12 +276,12 @@ double KinematicPathBuilder::angle(Node a, Node b, Node c)
 }
 double KinematicPathBuilder::curvature(WaypointSharedPtr w)
 {
-    return curvature(*w->origin->origin->node, *w->origin->node, *w->node);
+    return curvature(w->origin->origin->node, w->origin->node, w->node);
 }
-double KinematicPathBuilder::curvature(Node a, Node b, Node c)
+double KinematicPathBuilder::curvature(Node *a, Node *b, Node *c)
 {
-    double alpha = angle(a, b, c);
-    double lmin = min(d(a, b), d(b, c));
+    double alpha = angle(*a, *b, *c);
+    double lmin = min(cost(a, b), cost(b, c));
 
     if(fabs(alpha) < 0.001) return std::numeric_limits<double>::max();
 
