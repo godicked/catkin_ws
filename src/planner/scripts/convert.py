@@ -14,7 +14,7 @@ def convert_trans_rot_vel_to_steering_angle(v, omega, wheelbase):
     return 0
 
   radius = v / omega
-  return math.atan(wheelbase / radius)
+  return math.degrees(math.atan(wheelbase / radius) )
 
 
 def cmd_callback(data):
@@ -31,9 +31,9 @@ def cmd_callback(data):
   speed = Int32()
   speed.data = vel_to_rpm(v)
   speed_pub.publish(speed)
-  rospy.loginfo("send speed %d", speed.data)
+  #rospy.loginfo("send speed %d", speed.data)
 
-  rospy.loginfo("send steer %.2f", steering)
+  rospy.loginfo("%.3f", steering)
   steer = Int16()
   steer.data = steering 
   steer_pub.publish(steer)
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     twist_cmd_topic = rospy.get_param('~twist_cmd_topic', '/cmd_vel')
     speed_cmd_topic = rospy.get_param('~speed_cmd_topic', '/manual_control/speed')
     steer_cmd_topic = rospy.get_param('steer_cmd_topic', 'manual_control/steering2')
-    wheelbase = rospy.get_param('~wheelbase', 0.3)
+    wheelbase = rospy.get_param('~wheelbase', 0.26)
     
     rospy.Subscriber(twist_cmd_topic, Twist, cmd_callback, queue_size=1)
     #pub = rospy.Publisher(ackermann_cmd_topic, AckermannDriveStamped, queue_size=1)

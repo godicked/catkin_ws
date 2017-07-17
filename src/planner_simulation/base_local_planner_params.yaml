@@ -11,6 +11,9 @@ TrajectoryPlannerROS:
   holonomic_robot: false
   #occdist_scale: 0.02
   pdist_scale: 5.0
+  gdist_scale: 0.2
+  heading_lookahead: 0.0
+  publish_cost_grid_pc: true
   #yaw_goal_tolerance: 1.0
   #dwa: true
 #clearing_rotation_allowed: false

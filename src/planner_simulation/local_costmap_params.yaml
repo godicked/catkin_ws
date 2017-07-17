@@ -3,6 +3,7 @@ local_costmap:
   robot_base_frame: robot0
   #static_map: true
   rolling_window: true
-  #width: 10.0
-  #height: 10.0
-
+  width: 2.0
+  height: 2.0
+  plugins:
+    - {name: static_map,       type: "costmap_2d::StaticLayer"}
