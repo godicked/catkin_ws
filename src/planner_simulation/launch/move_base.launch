@@ -19,13 +19,13 @@
 
   <!--<include file="$(find stdr_launchers)/launch/rviz.launch" />-->
 
-  <!--<node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find planner_simulation)/map.yaml">
+  <node pkg="map_server" type="map_server" name="mapping" output="screen" args="$(find planner_simulation)/map.yaml">
   <remap from="map" to="map2" />
-  </node>-->
+  </node>
 
 
-  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen" >
-    <!--<remap from="map" to="map2"/>-->
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen" launch-prefix="gdb -ex run --args">
+    <remap from="map" to="map2"/>
     <remap from="cmd_vel" to="robot0/cmd_vel" />
     <remap from="odom" to="robot0/odom" />
     <rosparam file="$(find planner_simulation)/costmap_common_params.yaml" command="load" ns="global_costmap" />
@@ -36,7 +36,7 @@
     <!--<param name="base_global_planner" value="global_planner/GlobalPlanner"/>-->
     <param name="base_global_planner" value="rrt/RRTxPlanner"/>
     <param name="controller_frequency" value="5.0" />
-    <param name="planner_frequency" value="1.0" />
+    <param name="planner_frequency" value="3.0" />
     <rosparam file="$(find planner_simulation)/base_local_planner_params.yaml" command="load" />
   </node>
 

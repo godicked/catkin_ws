@@ -14,6 +14,10 @@
 #include <costmap_converter/costmap_to_polygons_concave.h>
 #include <costmap_converter/costmap_to_polygons.h>
 
+#include <dynamic_reconfigure/DoubleParameter.h>
+#include <dynamic_reconfigure/Reconfigure.h>
+#include <dynamic_reconfigure/Config.h>
+
 #include <geometry_msgs/Polygon.h>
 
 
@@ -50,6 +54,9 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
     costmap_2d::Costmap2DROS *costmap_ros_;
     costmap_2d::Costmap2D *costmap_;
     costmap_2d::Costmap2D low_res_costmap;
+    boost::shared_ptr<costmap_2d::Layer> static_layer;
+    //costmap_2d::Layer obstacle_layer;
+    
     ros::NodeHandle n;
     ros::Publisher path_pub;
     ros::Publisher stop_pub;

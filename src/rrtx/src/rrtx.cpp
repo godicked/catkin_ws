@@ -21,6 +21,7 @@ namespace rrt
     {
         marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 1000);
         nh_.param<string>("map_frame", this->map_frame, "/map");
+        publisher.initialize(&nh_, map_frame);
     }
 
     RRTx::RRTx(costmap_2d::Costmap2D *costmap) : RRTx()
@@ -159,6 +160,16 @@ namespace rrt
         return trajectories[make_pair(a,b)].cost;
     }
 
+    void RRTx::setCost(Node *a, Node *b, double cost)
+    {
+        trajectories[make_pair(a,b)].cost = cost;
+    }
+
+    Trajectory *RRTx::trajectory(Node *a, Node *b)
+    {
+        return &trajectories[make_pair(a, b)];
+    }
+
     vector<Node *> RRTx::findTrajectories(Node *v, vector<Node *> nodes)
     {
         vector<Node *> exist;
@@ -166,6 +177,7 @@ namespace rrt
         {
             if(trajectoryExist(v, u))
             {
+                makeTrajectory(v, u);
                 exist.push_back(u);
             }
         }
@@ -193,8 +205,15 @@ namespace rrt
             if(cost > 50)
                 return false;
         }
-        trajectories[make_pair(v,u)] = Trajectory(u, v, dist);
+        
         return true;
+    }
+
+    Trajectory *RRTx::makeTrajectory(Node *v, Node *u)
+    {
+        double dist = distance(*v, *u);
+        trajectories[make_pair(v,u)] = Trajectory(u, v, dist);
+        return &trajectories[make_pair(v, u)];
     }
 
     bool RRTx::isOutOfBound(unsigned int mx, unsigned int my)
@@ -297,11 +316,12 @@ namespace rrt
             {
                 if(u == v->parent)
                     continue;
+
                 double dist = cost(u, v) + v->lmc;
                 if(u->lmc > dist)
                 {
                     u->lmc      = dist;
-                    u->parent   = v;
+                    makeParentOf(v, u);
 
                     if(u->g - u->lmc > epsilon)
                         verrifyQueue(u);
@@ -340,7 +360,7 @@ namespace rrt
 
         for(Node *u : outN(*v))
         {
-            if(u->parent != v)
+            if(u->parent == v)
                 continue;
 
             double dist = cost(v, u) + u->lmc;
@@ -349,8 +369,7 @@ namespace rrt
                 p = u;
             }
         }
-
-        v->parent = p;
+        makeParentOf(p, v);
     }
 
 	void RRTx::queueInsert(Node *v)
@@ -426,6 +445,7 @@ namespace rrt
          return nodeContainer;
      }
 
+
      void RRTx::grow()
      {
          
@@ -483,6 +503,8 @@ namespace rrt
          nodeHash.clear();
          nodeContainer.clear();
          trajectories.clear();
+         infTrajectories.clear();
+         orphanHash.clear();
          
          //gen = boost::random::mt19937(time(0));
          
@@ -539,100 +561,229 @@ namespace rrt
         return angle;
      }
 
-    //  vector<Node *> RRTx::getPathWithConstraint()
-    //  {
-    //      vector<pair<Node *, Node*> > visited;
-    //      vector<Node *> nodes;
-    //      Node *last = vbot_;
-    //      Node *v = vbot_->parent;
-    //      Node *next = nullptr;
-    //      double pathCost = 0;
+     void RRTx::updateTree(double origin_x, double origin_y, double size_x, double size_y)
+     {
+         ros::Time time = ros::Time::now();
+         //ROS_INFO("start update tree");
+         //findFreeTrajectories(map);
+         reduceInconsist();
 
-    //      // the first segment has the robot orientation
-    //      nodes.push_back(last);
-    //      nodes.push_back(v);
-    //      ROS_INFO("optimal path size: %.2f", v->lmc);
+         addObstacle(origin_x, origin_y, size_x, size_y);
+         //ROS_INFO("end add obstacle");
+         propogateDescendants();
+         //verrifyQueue(vbot_->parent);
+         reduceInconsist();
+         //ROS_INFO("end update");
 
-    //      while(v->parent != nullptr && pathCost < (vbot_->parent->lmc * 5) + 10)
-    //      {
-    //         double angle = getAngle(*last, *v, *v->parent);
-    //         double lmin = min(distance(*last, *v), distance(*v, *v->parent));
-    //         double k = smoother.getSegmentCurvature(lmin, angle);
-    //         // if curvature is not respecting the constrainst
-    //         if(k > kmax)
-    //         {
-    //             next = getNeighborWithConstraint(last, v);
-    //         }
-    //         else
-    //         {
-    //             next = v->parent;
-    //         }
-    //         if(next == nullptr)
-    //         {
-    //             ROS_INFO("didnt found best");
-    //             break;
-    //         }
+         ros::Duration d = ros::Time::now() - time;
+         //ROS_INFO("update Tree took %.3fsec", d.toSec());
+     }
 
-    //         nodes.push_back(next);
-    //         pathCost += distance(*v, *next);
-    //         last = v;
-    //         v = next;
-    //      }
+     void RRTx::verrifyOrphan(Node *v)
+     {
+         if(queueContains(v))
+         {
+             queueRemove(v);
+         }
 
-    //      if(v == goal_)
-    //      {
-    //          //ROS_INFO("Found goal!");
-    //          nodes.push_back(v);
-    //          pathCost += distance(*last, *v);
-    //      }
-    //      else
-    //      {
-    //          for(int i = nodes.size() - 1; i > 1; i--)
-    //          {
-    //              if(nodes[i]->lmc > nodes[i-1]->lmc)
-    //              {
-    //                  nodes.pop_back();
-    //              }
-    //              else
-    //              {
-    //                  break;
-    //              }
-    //          }
-    //      }
+         orphanHash[v] = true;
+     }
 
-    //      ROS_INFO("final path length estimation: %.2f", pathCost);
-    //      //ROS_INFO("End get path with constraint %ld", nodes.size());
-    //      return nodes;
-    //  }
+     void RRTx::insertOrphanChildren(Node *v)
+     {
+        orphanHash[v] = true;
 
-    //  Node *RRTx::getNeighborWithConstraint(Node * last, Node *v)
-    //  {
-    //     Node *best = nullptr;
-    //     double bestDist = std::numeric_limits<double>::max();
-    //     for(auto n : outN(*v))
-    //     {
-    //         double angle = getAngle(*last, *v, *n);
-    //         double lmin = min(distance(*last, *v), distance(*v, *n));
-    //         double k = smoother.getSegmentCurvature(lmin, angle);
-    //         double dist = n->lmc + distance(*v, *n);
-    //         //ROS_INFO("k: %.2f", k);
-    //         if( k <= kmax &&
-    //             (best == nullptr || best->lmc > n->lmc)
-    //             && n->parent != v) 
-    //         {
-    //             bestDist = dist;
-    //             best = n;
-    //         }
+        for(auto c : v->childs)
+        {
+            insertOrphanChildren(c);
+        }
+     }
 
-    //         // if( new_k <= kmax)
-    //         // {
-    //         //     ROS_INFO("lmc: %.2f", n->lmc);
-    //         //     visited.push_back(make_pair(v, n));
-    //         // }
-    //     }
-    //     return best;
-    //  }
+     void RRTx::propogateDescendants()
+     {
+         //ROS_INFO("propagateDescendants");
+         // get all orphan nodes
+         vector<Node *> orphans;
+         orphans.reserve(orphanHash.size());
+         for(auto o : orphanHash) 
+         { 
+             orphans.push_back(o.first);
+         }
+         //ROS_INFO("%ld orphans", orphans.size());
+         // insert children to orphans
+         for(auto v : orphans)
+         {
+             insertOrphanChildren(v);
+         }
+         // get new list of orphan nodes
+         orphans.clear();
+         orphans.reserve(orphanHash.size());
+         for(auto v : orphanHash) 
+         { 
+             orphans.push_back(v.first);
+         }
+         
+        //  ROS_INFO("%ld orphans", orphans.size());
+         // verifiy outgoing edges
+         for(auto v : orphans)
+         {
+             vector<Node *> neighbors = outN(*v);
+             neighbors.push_back(v);
+             for(auto n : neighbors)
+             {
+                 if(orphanHash[n]) continue;
 
+                 n->g = infinity;
+                 verrifyQueue(n);
+             }
+
+         }
+
+         for (auto v : orphans)
+         {
+             v->g = infinity;
+             v->lmc = infinity;
+             if (v->parent)
+             {
+                auto &childs = v->parent->childs;
+                childs.erase(remove_if(
+                    childs.begin(), childs.end(), [v](Node *c) { return v == c; }),
+                    childs.end());
+                v->parent = nullptr;
+             }
+         }
+
+         orphanHash.clear();
+        //  ROS_INFO("end propagate");
+     }
+     void RRTx::findFreeTrajectories(costmap_2d::Costmap2D map)
+     {
+
+     }
+
+     void RRTx::addObstacle(double origin_x, double origin_y, double size_x, double size_y)
+     {
+         vector<Trajectory *> hit;
+         vector<RTreePoint> search;
+         box b(point(origin_x, origin_y), point(origin_x + size_x, origin_y + size_y));
+         rtree.query(bgi::intersects(b), back_inserter(search));
+
+        //  ROS_INFO("found %ld nodes", search.size());
+
+         for(auto s : search)
+         {
+            Node *v = s.second;
+
+            for(auto n : outN(*v))
+            {
+                if(cost(v, n) == infinity) continue;
+                if(!trajectoryExist(v, n))
+                {
+                    setCost(v, n, infinity);
+                    hit.push_back(trajectory(v, n));
+                }
+            }
+         }
+
+        //  ROS_INFO("hit %ld trajectories", hit.size());
+
+         for(auto traj : hit)
+         {
+            infTrajectories.push_back(traj);
+            if(traj->source->parent == traj->target)
+            {
+                //ROS_INFO("is parent!");
+                //infTrajectories.push_back(traj);
+                verrifyOrphan(traj->source);
+            }
+            if(traj->target->parent == traj->source)
+            {
+                //ROS_INFO("is parent!");
+                //infTrajectories.push_back(traj);
+                verrifyOrphan(traj->target);
+            }
+         }
+     }
+
+     void RRTx::addObstacle(Polygon obstacle)
+     {
+         //ROS_INFO("start");
+         ros::Time time = ros::Time::now();
+         auto points = obstacle.points;
+         int size = points.size();
+         vector<Trajectory *> hit;
+
+         float minx = points[0].x, 
+                miny = points[0].y, 
+                maxx = points[0].x, 
+                maxy = points[0].y;
+
+         for(auto p : points)
+         {
+             minx = min(minx, p.x);
+             miny = min(miny, p.y);
+             
+             maxx = max(maxx, p.x);
+             maxy = max(maxy, p.y);
+         }
+
+
+        point p1(minx, miny);
+        point p2(maxx, maxy);
+        box b(p1, p2);
+        vector<TrajectoryBox> search;
+        validTraj.query(bgi::intersects(b), back_inserter(search));
+        
+        // test for segment intersection
+        for(auto s : search)
+        {
+            Trajectory *traj = s.second;
+            // point from obstacle
+            // point op1(points[i].x, points[i].y);
+            // point op2(points[ii].x, points[ii].y);
+            infTrajectories.push_back(traj);
+            // point from search
+            // point sp1(traj->source->x, traj->source->y);
+            // point sp2(traj->target->x, traj->target->y);
+            if(!trajectoryExist(traj->source, traj->target) || true)
+            {
+                hit.push_back(traj);
+                break;
+            }
+        }
+         
+
+         if(!hit.empty())
+         {
+             //ROS_INFO("update %ld Trajectory", hit.size());
+         }
+         for(auto traj : hit)
+         {
+             if(traj->cost != infinity)
+             {
+                 traj->cost = infinity;
+                 
+                 if(traj->source->parent == traj->target)
+                 {
+                     //ROS_INFO("is parent!");
+                     //infTrajectories.push_back(traj);
+                     verrifyOrphan(traj->source);
+                 }
+                 if(traj->target->parent == traj->source)
+                 {
+                     //ROS_INFO("is parent!");
+                     //infTrajectories.push_back(traj);
+                     verrifyOrphan(traj->target);
+                 }
+             }
+         }
+
+         ros::Duration d = ros::Time::now() - time;
+         //ROS_INFO("add obstacle took %.3fsec", d.toSec());
+         //ROS_INFO("end");
+     }
+
+   
      bool RRTx::computePath(Path &path)
      {
          
@@ -644,9 +795,9 @@ namespace rrt
             nodes = builder.buildPath(vbot_, goal_, &trajectories);
             builder.publishVisited();
             // rewire parent so the path gets recalculated on obstacle change
-            for(int i = 0; i < nodes.size() -1; i++)
+            for(int i = 1; i < nodes.size() -1; i++)
             {
-                nodes[i]->parent = nodes[i+1];
+                makeParentOf(nodes[i+1], nodes[i]);
             }
          }
          else
@@ -675,242 +826,48 @@ namespace rrt
          }
 
          ros::Duration d = ros::Time::now() - t;
-         ROS_INFO("Get Path took %.2f seconds", d.toSec());
+         //ROS_INFO("Get Path took %.2f seconds", d.toSec());
 
          lastPath = nodes;  
 
          return  true;
      }
 
-     void RRTx::setMaxDist(double dist)
-     {
-         maxDist = dist;
-         // As defined in RRT* Y >= 2 * dim + (1 + 1/dim) * u(XFree)
-         // u = volume, XFree = free space. y > Y since we use total volume of map
-         y = 6.0 * costmap_->getSizeInMetersX() * costmap_->getSizeInMetersY();
-     }
+    void RRTx::setMaxDist(double dist)
+    {
+        maxDist = dist;
+        // As defined in RRT* Y >= 2 * dim + (1 + 1/dim) * u(XFree)
+        // u = volume, XFree = free space. y > Y since we use total volume of map
+        y = 6.0 * costmap_->getSizeInMetersX() * costmap_->getSizeInMetersY();
+    }
 
-     void RRTx::publish(bool path, bool tree)
-     {
-         
-         visualization_msgs::Marker goal;
-         goal.header.frame_id       = map_frame;
-         goal.header.stamp          = ros::Time::now();
-         goal.ns                    = "pose";
-         goal.id                    = 0;
-         goal.action                = visualization_msgs::Marker::ADD;
-         goal.type                  = visualization_msgs::Marker::POINTS;
-         
-         goal.pose.orientation.w    = 1.0;
-         goal.scale.x               = 0.1;
-         goal.scale.y               = 0.1;
-         
-         goal.color.a               = 1;
-         goal.color.r               = 1;
+    void RRTx::publish(bool path, bool tree)
+    {
+        
+        publisher.publishTree(vbot_, goal_, nodeContainer, true);
+        publisher.publishInfTrajectories(infTrajectories);
+        return;
 
-         geometry_msgs::Point pgoal;
-         pgoal.x = goal_->x;
-         pgoal.y = goal_->y;
-         pgoal.z = 1;
-         goal.points.push_back(pgoal);
+    }
 
-         marker_pub.publish(goal);
-
-         // publish Start (vbot)
-         visualization_msgs::Marker vbot;
-         vbot.header.frame_id       = map_frame;
-         vbot.header.stamp          = ros::Time::now();
-         vbot.ns                    = "pose";
-         vbot.id                    = 1;
-         vbot.action                = visualization_msgs::Marker::ADD;
-         vbot.type                  = visualization_msgs::Marker::POINTS;
-         
-         vbot.pose.orientation.w    = 1.0;
-         vbot.scale.x               = 0.1;
-         vbot.scale.y               = 0.1;
-         
-         vbot.color.a               = 1;
-         vbot.color.r               = 1;
-         vbot.color.g               = 1;
-
-         geometry_msgs::Point pvbot;
-         pvbot.x = vbot_->x;
-         pvbot.y = vbot_->y;
-         pvbot.z = 1;
-         vbot.points.push_back(pvbot);
-
-         marker_pub.publish(vbot);
-
-         if(path)
-         {
-             visualization_msgs::Marker nodes, edges;
-
-             nodes.header.frame_id  = map_frame;
-             nodes.header.stamp     = ros::Time::now();
-             nodes.ns               = "path";
-             nodes.id               = 4; 
-             nodes.action           = visualization_msgs::Marker::ADD;
-             nodes.type             = visualization_msgs::Marker::POINTS;
-
-             nodes.scale.x          = 0.02;
-             nodes.scale.y          = 0.02;
-
-             nodes.color.a          = 1;
-             nodes.color.r          = 1;
-             nodes.color.g          = 0.5;
-
-             
-             edges.header.frame_id  = map_frame;
-             edges.header.stamp     = ros::Time::now();
-             edges.ns               = "path";
-             edges.id               = 5; 
-             edges.action           = visualization_msgs::Marker::ADD;
-             edges.type             = visualization_msgs::Marker::LINE_LIST;
-
-             edges.scale.x          = 0.01;
-             edges.scale.y          = 0.01;
-
-             edges.color.a          = 1;
-             edges.color.r          = 0.5;
-             edges.color.g          = 1;
-
-
-             for(int i = 0; i < lastPath.size(); i++)
-             {
-                geometry_msgs::Point p;
-                 p.x = lastPath[i]->x;
-                 p.y = lastPath[i]->y;
-
-                 nodes.points.push_back(p);
-
-                 if (i < lastPath.size() - 1)
-                 {
-                     edges.points.push_back(p);
-                     p.x = lastPath[i+1]->x;
-                     p.y = lastPath[i+1]->y;
-                     edges.points.push_back(p);
-                 }
-
-             }
-
-             marker_pub.publish(nodes);
-             marker_pub.publish(edges);
-         }
-
-         if(tree)
-         {
-             visualization_msgs::Marker nodes, edges;
-
-             nodes.header.frame_id  = map_frame;
-             nodes.header.stamp     = ros::Time::now();
-             nodes.ns               = "tree";
-             nodes.id               = 2; 
-             nodes.action           = visualization_msgs::Marker::ADD;
-             nodes.type             = visualization_msgs::Marker::POINTS;
-
-             nodes.scale.x          = 0.05;
-             nodes.scale.y          = 0.05;
-
-             nodes.color.a          = 1;
-             nodes.color.b          = 1;
-
-             
-             edges.header.frame_id  = map_frame;
-             edges.header.stamp     = ros::Time::now();
-             edges.ns               = "tree";
-             edges.id               = 3; 
-             edges.action           = visualization_msgs::Marker::ADD;
-             edges.type             = visualization_msgs::Marker::LINE_LIST;
-
-             edges.scale.x          = 0.02;
-             edges.scale.y          = 0.02;
-
-             edges.color.a          = 1;
-             edges.color.g          = 1;
-
-             for (auto node : nodeContainer)
-             {
-                 geometry_msgs::Point p1, p2;
-                 p1.x = node.x;
-                 p1.y = node.y;
-
-                 nodes.points.push_back(p1);
-
-                 if (node.parent == nullptr)
-                     continue;
-
-                 edges.points.push_back(p1);
-                 p2.x = node.parent->x;
-                 p2.y = node.parent->y;
-                 edges.points.push_back(p2);
-             }
-
-             marker_pub.publish(nodes);
-             marker_pub.publish(edges);
-         }
-     }
-
-     void RRTx::publishEdges(vector<pair<Node *, Node *> > edge_vector)
-     {
-        visualization_msgs::Marker edges;
-        edges.header.frame_id  = map_frame;
-        edges.header.stamp     = ros::Time::now();
-        edges.ns               = "visited";
-        edges.id               = 6; 
-        edges.action           = visualization_msgs::Marker::ADD;
-        edges.type             = visualization_msgs::Marker::LINE_LIST;
-
-        edges.scale.x          = 0.02;
-        edges.scale.y          = 0.02;
-
-        edges.color.a          = 1;
-        edges.color.r          = 1;
-
-        for(auto e : edge_vector)
+    /*
+    *   Make set the parent of the node v. Also actualise childs from old and new parent
+    */ 
+    void RRTx::makeParentOf(Node *parent, Node *v)
+    {
+        if(v->parent)
         {
-            geometry_msgs::Point p1, p2;
-            p1.x = e.first->x;
-            p1.y = e.first->y;
-            p2.x = e.second->x;
-            p2.y = e.second->y;
-
-            edges.points.push_back(p1);
-            edges.points.push_back(p2);
+            auto& childs = v->parent->childs;
+            childs.erase(remove_if(
+                childs.begin(), childs.end(), [v](Node *c){ return v == c; }),
+                childs.end());
         }
 
-        marker_pub.publish(edges);
-     }
-
-};
-
-
-typedef rrt::RRTx::NodeContainer NodeContainer;
-
-
-/*
-void recursive_fill(visualization_msgs::Marker &points, visualization_msgs::Marker &lines, rrt::Node node)
-{
-    geometry_msgs::Point p;
-    p.x = node.x;
-    p.y = node.y;
-    p.z = 1;
-
-    points.points.push_back(p);
-
-    for(auto child : node.childs)
-    {
-        geometry_msgs::Point pChild;
-        pChild.x = child->x;
-        pChild.y = child->y;
-        pChild.z = 1;
-
-        lines.points.push_back(p);
-        lines.points.push_back(pChild);
-
-        recursive_fill(points, lines, *child);
+        v->parent = parent;
+        if(v->parent)
+        {
+            parent->childs.push_back(v);
+        }
     }
-}
-*/
 
-
-
+}; // namespace rrt

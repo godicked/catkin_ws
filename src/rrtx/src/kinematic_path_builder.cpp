@@ -43,25 +43,26 @@ KinematicPathBuilder::KinematicPathBuilder()
 
 KinematicPathBuilder::KinematicPathBuilder(ros::NodeHandle n, double wheelbase, double max_steering)
 {
-    marker_pub  = n.advertise<visualization_msgs::Marker>("visited", 100);
+    marker_pub  = n.advertise<visualization_msgs::Marker>("/visited", 100);
     kmax = tan(max_steering) / wheelbase;
 }
 
 vector<Node *> KinematicPathBuilder::buildPath(Node *start, Node *goal, TrajectoryHash *trajectories)
 {
+    //ROS_INFO("build Path start..");
     t = trajectories;
     WaypointSharedPtr w = buildWaypoints(start, goal);
     vector<Node *> path;
     
     while(w)
     {
-        ROS_INFO("set path..");
+        //ROS_INFO("set path..");
         path.push_back(w->node);
         w = w->origin;
     }
-    ROS_INFO("reverse");
+
     reverse(path.begin(), path.end());
-    ROS_INFO("path length %ld", path.size());
+    //ROS_INFO("path length %ld", path.size());
     t = nullptr;
     return path;
 }
@@ -105,7 +106,7 @@ WaypointSharedPtr KinematicPathBuilder::buildWaypoints(Node *start, Node *goal)
     }
 
 
-    ROS_INFO("Build Waypoints end");
+    //ROS_INFO("Build Waypoints end");
     root = startw;
     return end;
 }
@@ -116,7 +117,14 @@ void KinematicPathBuilder::insertNeighbors(WaypointSharedPtr w)
     {   
         WaypointSharedPtr next( new Waypoint(n, w) );
         next->cost = w->cost + cost(w->node, n);
-
+        if(w->node->parent != n)
+        {
+            update_key(next);
+        }
+        else
+        {
+            next->key = 0;
+        }
         queue.push(next);
     }
 }

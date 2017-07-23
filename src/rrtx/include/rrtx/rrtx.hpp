@@ -11,6 +11,7 @@
 
 #include <costmap_2d/costmap_2d.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Polygon.h>
 #include <tf/tf.h>
 
 #include "spline_curve.hpp"
@@ -19,6 +20,7 @@
 
 #include <rrtx/rrtx_struct.hpp>
 #include <rrtx/kinematic_path_builder.hpp>
+#include <rrtx/rrtx_publisher.hpp>
 
 
 namespace bg = boost::geometry;
@@ -30,7 +32,8 @@ using namespace boost;
 namespace rrt
 {
 
-
+typedef boost::shared_ptr< const std::vector<geometry_msgs::Polygon> > PolygonsPtr;
+typedef geometry_msgs::Polygon Polygon;
 
 
 class RRTx
@@ -43,14 +46,15 @@ class RRTx
     typedef bgi::rtree<RTreePoint, bgi::rstar<16> > NodeRTree;
 
     // segment indexer is not supported in boost 1.54
-    typedef std::pair<box, Trajectory *> RTreeBox;
-    typedef bgi::rtree<RTreeBox, bgi::rstar<16> > TrajectoryRTree;
+    typedef std::pair<box, Trajectory *> TrajectoryBox;
+    typedef bgi::rtree<TrajectoryBox, bgi::rstar<16> > TrajectoryRTree;
 
     typedef boost::heap::fibonacci_heap<Node *, 
             boost::heap::compare<node_compare> > Queue;
     typedef Queue::handle_type handle_t;
 
     typedef boost::unordered_map<Node *, handle_t> NodeHash;
+    typedef boost::unordered_map<Node *, bool> OrphanHash;
 
 
     public:
@@ -69,6 +73,7 @@ class RRTx
                                              geometry_msgs::Pose goal);
         void                init            (double sx, double sy, double stheta, double gx, double gy);
         void                grow            (unsigned int iteration);
+        void                updateTree      (double origin_x, double origin_y, double size_x, double size_y);
         Node                rootNode        ();
         NodeContainer       getContainer    ();
         bool                computePath     (Path &path);
@@ -105,6 +110,11 @@ class RRTx
         void                grow            ();
         double              getAngle        (Node a, Node b, Node c);
         double              cost            (Node *a, Node *b);
+        void                setCost         (Node *a, Node *b, double cost);
+        Trajectory         *trajectory      (Node *a, Node *b);
+        void                makeParentOf    (Node *parent, Node *v);
+        Trajectory         *makeTrajectory  (Node *v, Node *u);
+        void                insertValidTrajectory(Node *v, Node *u);
 
         //  Priority Queue related functions
         void                queueInsert     (Node *v);
@@ -113,6 +123,15 @@ class RRTx
         bool                queueContains   (Node *v);
         void                updateKey       (Node *v);
         Node               *queuePop        ();
+
+        // Dynamic part of RRTx
+        void addObstacle(Polygon obstacle);
+        void addObstacle(double origin_x, double origin_y, double size_x, double size_y);
+        void findFreeTrajectories(costmap_2d::Costmap2D map);
+        void propogateDescendants();
+        void verrifyOrphan(Node *v);
+        void insertOrphanChildren(Node *v);
+
 
         void                publishEdges(std::vector<std::pair<Node *, Node *> > edge_vector);
         std::vector<Node *> getPathWithConstraint();
@@ -129,6 +148,7 @@ class RRTx
         //  and helps for the radius search
         NodeRTree   rtree;
 
+        OrphanHash orphanHash;  
         TrajectoryRTree validTraj;
         TrajectoryRTree obstacleTraj;
 
@@ -161,6 +181,8 @@ class RRTx
         ros::Publisher  marker_pub;
         ros::Publisher  path_pub;
 
+        RRTxPublisher publisher;
+
         std::string map_frame;
 
         BSplinePathSmoother smoother;
@@ -169,6 +191,7 @@ class RRTx
         double kmax;
 
         std::vector<Node *> lastPath;
+        std::vector<Trajectory *> infTrajectories;
 
 };
 

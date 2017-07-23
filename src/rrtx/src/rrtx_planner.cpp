@@ -35,8 +35,27 @@ void publish_map(ros::Publisher pub, costmap_2d::Costmap2D map)
 
 }
 
+void activate_static_map(bool active)
+{
+    dynamic_reconfigure::ReconfigureRequest srv_req;
+    dynamic_reconfigure::ReconfigureResponse srv_resp;
+    dynamic_reconfigure::BoolParameter bool_param;
+    dynamic_reconfigure::Config conf;
+
+    bool_param.name = "enabled";
+    bool_param.value = active;
+    conf.bools.push_back(bool_param);
+
+    srv_req.config = conf;
+
+    ros::service::call("/move_base/global_costmap/static_layer/set_parameters", srv_req, srv_resp);
+}
+
+
+
 void fill_low_res(costmap_2d::Costmap2D *fullmap, costmap_2d::Costmap2D &low_res, const geometry_msgs::PoseStamped &robot)
 {
+
   double lox = robot.pose.position.x - (low_res.getSizeInMetersX() / 2);
   double loy = robot.pose.position.y - (low_res.getSizeInMetersY() / 2);
 
@@ -129,7 +148,7 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
   n = ros::NodeHandle("~/" + name);
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
-  low_res_costmap = costmap_2d::Costmap2D(100, 100, 0.05, 0, 0);
+  low_res_costmap = costmap_2d::Costmap2D(200, 200, 0.05, 0, 0);
   path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
   stop_pub = n.advertise<actionlib_msgs::GoalID>("/move_base/cancel", 10);
   map_pub = n.advertise<nav_msgs::OccupancyGrid>("low_res", 10);
@@ -141,9 +160,11 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
 //   std::vector< boost::shared_ptr< costmap_2d::Layer > > *layers = layeredMap->getPlugins();
 //   for(auto layer : *layers)
 //   {
-//       if(layer->getName() == "obstacle_layer")
+//       //ROS_INFO("candidate %s", layer->getName().c_str());
+//       if(layer->getName().find("inflation_layer") != string::npos)
 //       {
-//           layer->deactivate();
+//           //ROS_INFO("found %s", layer->getName().c_str());
+//           static_layer = layer;
 //       }
 //   }
 
@@ -154,8 +175,10 @@ bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geomet
 {
   //ROS_INFO("make plan");
   
-  costmap_converter::PolygonContainerConstPtr polygons = getObstacles(start);
-  publishObstacles(polygons);
+  //costmap_converter::PolygonContainerConstPtr polygons = getObstacles(start);
+  //publishObstacles(polygons);
+
+  fill_low_res(costmap_, low_res_costmap, start);
 
   if(goalChanged(goal))
   {
@@ -172,6 +195,13 @@ bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geomet
       }
       else
       {
+        rrtx.updateTree(
+            low_res_costmap.getOriginX(), 
+            low_res_costmap.getOriginY(),
+            low_res_costmap.getSizeInMetersX(),
+            low_res_costmap.getSizeInMetersY()
+        );
+
         fillPath(goal, plan);
       }
       return true;
@@ -183,12 +213,17 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
                                 const geometry_msgs::PoseStamped &goal,
                                 std::vector<geometry_msgs::PoseStamped> &plan)
 {
-    costmap_2d::Costmap2D copy = *costmap_;
-    rrtx.setCostmap(&copy);
+    activate_static_map(true);
+    costmap_ros_->updateMap();
+    
+    rrtx.setCostmap(costmap_);
+
     rrtx.setConstraint(0.55, 0.26);
     rrtx.init(start.pose, goal.pose);
     rrtx.setMaxDist(2);
-    rrtx.grow(1000);
+    rrtx.grow(1200);
+    activate_static_map(false);
+
     return fillPath(goal, plan);
 }
 
@@ -218,7 +253,6 @@ bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<g
     
     path_pub.publish(spath);
     rrtx.publish(true, true);
-
 
     return true;
 

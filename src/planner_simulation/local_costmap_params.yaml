@@ -6,4 +6,4 @@ local_costmap:
   width: 2.0
   height: 2.0
   plugins:
-    - {name: static_map,       type: "costmap_2d::StaticLayer"}
+    - {name: obstacle_layer,   type: "costmap_2d::ObstacleLayer"}

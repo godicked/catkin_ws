@@ -5,9 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /Marker1
-        - /Marker1/Namespaces1
-        - /Path1
+        - /RRTx Tree1
+        - /RRTx Tree1/Namespaces1
       Splitter Ratio: 0.5
     Tree Height: 517
   - Class: rviz/Selection
@@ -32,6 +31,16 @@ Panels:
 Visualization Manager:
   Class: ""
   Displays:
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /tree
+      Name: RRTx Tree
+      Namespaces:
+        path: true
+        pose: true
+        tree: true
+      Queue Size: 100
+      Value: true
     - Alpha: 0.7
       Class: rviz/Map
       Color Scheme: map
@@ -40,16 +49,6 @@ Visualization Manager:
       Name: map_server
       Topic: /map
       Unreliable: false
-      Value: true
-    - Class: rviz/Marker
-      Enabled: true
-      Marker Topic: /rrt_tree
-      Name: Marker
-      Namespaces:
-        path: true
-        pose: true
-        tree: true
-      Queue Size: 100
       Value: true
     - Alpha: 1
       Buffer Length: 1
@@ -123,7 +122,7 @@ Visualization Manager:
         Value: false
       Name: Current View
       Near Clip Distance: 0.01
-      Scale: 64.1449
+      Scale: 65.4985
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
       X: 3.484

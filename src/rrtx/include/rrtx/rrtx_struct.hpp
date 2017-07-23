@@ -87,6 +87,9 @@ struct node_compare
 typedef boost::unordered_map<NodePair, Trajectory, hash_node_pair, node_pair_equal> TrajectoryHash;
 
 
+
+
+
 }; // namespace rrt
 
 #endif

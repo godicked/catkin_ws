@@ -21,6 +21,7 @@ struct Waypoint
     Node *node = nullptr;
     WaypointSharedPtr origin;
     double cost = 0;
+    double key = 0;
     Waypoint(Node *n) : node(n)
     {}
     Waypoint(Node *n, WaypointSharedPtr origin) : node(n), origin(origin)
@@ -28,16 +29,16 @@ struct Waypoint
 };
 
 
-double waypoint_key(const WaypointSharedPtr w) 
+void update_key(WaypointSharedPtr w) 
 {
-    return w->cost + w->node->lmc;
+    w->key = w->cost + w->node->lmc;
 }
 
 struct waypoint_compare
 {
     const bool operator()(const WaypointSharedPtr w1, const WaypointSharedPtr w2) const
     {
-        return waypoint_key(w1) > waypoint_key(w2);
+        return w1->key > w2->key;
     }
 };
 
