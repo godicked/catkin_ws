@@ -32,10 +32,6 @@ using namespace boost;
 namespace rrt
 {
 
-typedef boost::shared_ptr< const std::vector<geometry_msgs::Polygon> > PolygonsPtr;
-typedef geometry_msgs::Polygon Polygon;
-
-
 class RRTx
 {
     typedef bg::model::point<double, 2, bg::cs::cartesian> point;
@@ -45,9 +41,6 @@ class RRTx
     typedef std::pair<point, Node *> RTreePoint;
     typedef bgi::rtree<RTreePoint, bgi::rstar<16> > NodeRTree;
 
-    // segment indexer is not supported in boost 1.54
-    typedef std::pair<box, Trajectory *> TrajectoryBox;
-    typedef bgi::rtree<TrajectoryBox, bgi::rstar<16> > TrajectoryRTree;
 
     typedef boost::heap::fibonacci_heap<Node *, 
             boost::heap::compare<node_compare> > Queue;
@@ -125,17 +118,11 @@ class RRTx
         Node               *queuePop        ();
 
         // Dynamic part of RRTx
-        void addObstacle(Polygon obstacle);
         void addObstacle(double origin_x, double origin_y, double size_x, double size_y);
         void findFreeTrajectories(costmap_2d::Costmap2D map);
         void propogateDescendants();
         void verrifyOrphan(Node *v);
         void insertOrphanChildren(Node *v);
-
-
-        void                publishEdges(std::vector<std::pair<Node *, Node *> > edge_vector);
-        std::vector<Node *> getPathWithConstraint();
-        Node               *getNeighborWithConstraint(Node *last, Node *v);
 
         //  Member variables
 
@@ -148,9 +135,8 @@ class RRTx
         //  and helps for the radius search
         NodeRTree   rtree;
 
-        OrphanHash orphanHash;  
-        TrajectoryRTree validTraj;
-        TrajectoryRTree obstacleTraj;
+        // Orphan Nodes after adding obstacles
+        OrphanHash orphanHash;
 
         //  The priority queue needed by the RRTx algorithm
         //  And a NodeHash table to save the handle of the inserted object
