@@ -201,6 +201,7 @@ bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geomet
             low_res_costmap.getSizeInMetersX(),
             low_res_costmap.getSizeInMetersY()
         );
+        rrtx.updateRobot(start.pose);
 
         fillPath(goal, plan);
       }
@@ -222,7 +223,7 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     rrtx.init(start.pose, goal.pose);
     rrtx.setMaxDist(2);
     rrtx.grow(1200);
-    activate_static_map(false);
+    //activate_static_map(false);
 
     return fillPath(goal, plan);
 }

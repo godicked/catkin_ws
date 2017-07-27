@@ -81,6 +81,10 @@ namespace rrt
             pvbot.z = 1;
             vbot.points.push_back(pvbot);
 
+            pvbot.x = vbot_->parent->x;
+            pvbot.y = vbot_->parent->y;
+            vbot.points.push_back(pvbot);
+
             marker_pub.publish(vbot);
 
             visualization_msgs::Marker nodes, edges;

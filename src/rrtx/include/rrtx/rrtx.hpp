@@ -72,6 +72,7 @@ class RRTx
         bool                computePath     (Path &path);
         void                setConstraint   (double steering_angle, double wheelbase);
         void                publish     (bool path = true, bool tree = false);
+        void                updateRobot (geometry_msgs::Pose robot);
 
     private:
         
@@ -177,6 +178,8 @@ class RRTx
         double kmax;
 
         std::vector<Node *> lastPath;
+        geometry_msgs::Pose lastPose;
+
         std::vector<Trajectory *> infTrajectories;
 
 };

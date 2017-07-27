@@ -16,6 +16,14 @@ boost::random::mt19937 gen;
 
 namespace rrt
 {
+
+    double dist(geometry_msgs::Pose a, Node b)
+    {
+        double dx = a.position.x - b.x;
+        double dy = a.position.y - b.y;
+
+        return sqrt(dx*dx + dy*dy);
+    }
     
     RRTx::RRTx()
     {
@@ -490,6 +498,7 @@ namespace rrt
          double yaw_angle = tf::getYaw(pose.getRotation());
 
          init(start.position.x, start.position.y, yaw_angle, goal.position.x, goal.position.y);
+         lastPose = start;
      }
 
      void RRTx::init(double sx, double sy, double stheta, double gx, double gy)
@@ -577,6 +586,11 @@ namespace rrt
 
          ros::Duration d = ros::Time::now() - time;
          //ROS_INFO("update Tree took %.3fsec", d.toSec());
+
+         if(lastPath.size() > 1)
+         {
+             makeParentOf(lastPath[1], vbot_);
+         }
      }
 
      void RRTx::verrifyOrphan(Node *v)
@@ -754,6 +768,23 @@ namespace rrt
 
          return  true;
      }
+
+    void RRTx::updateRobot(geometry_msgs::Pose robot)
+    {
+        Node vbot;
+        vbot.x = robot.position.x;
+        vbot.y = robot.position.y;
+
+        if(lastPath.size() > 3)
+        {
+            if(distance(vbot, *lastPath[1]) > distance(vbot, *lastPath[2]) && cost(lastPath[1], lastPath[2]) != infinity)
+            {
+                vbot_ = lastPath[1];
+                makeParentOf(lastPath[2], vbot_);
+                updateKey(vbot_);
+            }
+        }
+    }
 
     void RRTx::setMaxDist(double dist)
     {

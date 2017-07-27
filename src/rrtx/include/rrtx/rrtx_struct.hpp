@@ -87,6 +87,23 @@ struct node_compare
 typedef boost::unordered_map<NodePair, Trajectory, hash_node_pair, node_pair_equal> TrajectoryHash;
 
 
+double angle(Node a, Node b, Node c)
+{
+    double x1, y1, x2, y2;
+
+    x1 = b.x - a.x;
+    y1 = b.y - a.y;
+
+    x2 = b.x - c.x;
+    y2 = b.y - c.y;
+
+    double dot = x1*x2 + y1*y2;
+    double cross = x1 * y2 - y1 * x2;
+
+    double angle = atan2(cross, dot);
+
+    return angle;
+}
 
 
 

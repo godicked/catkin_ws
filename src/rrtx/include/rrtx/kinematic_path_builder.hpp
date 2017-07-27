@@ -59,7 +59,6 @@ class KinematicPathBuilder
         // Waypoint *findBestNext(Waypoint *w);
         void insertNeighbors(WaypointSharedPtr w);
         // void propagateDeadEnd(Waypoint *w);
-        double angle(Node a, Node b, Node c);
         double curvature(Node *a, Node *b, Node *c);
         double curvature(WaypointSharedPtr w);
         double cost(Node *a, Node *b);
