@@ -19,8 +19,14 @@
 #include <ros/ros.h>
 
 #include <rrtx/rrtx_struct.hpp>
-#include <rrtx/kinematic_path_builder.hpp>
 #include <rrtx/rrtx_publisher.hpp>
+
+#include <ompl/geometric/planners/rrt/RRTstar.h>
+#include <ompl/datastructures/NearestNeighborsGNAT.h> 
+#include <ompl/base/SpaceInformation.h>
+#include <ompl/base/OptimizationObjective.h>
+#include <ompl/base/StateSampler.h>
+#include <ompl/base/ProblemDefinition.h>
 
 
 namespace bg = boost::geometry;
@@ -34,13 +40,6 @@ namespace rrt
 
 class RRTx
 {
-    typedef bg::model::point<double, 2, bg::cs::cartesian> point;
-    typedef bg::model::segment<point> segment;
-    typedef bg::model::box<point> box;
-
-    typedef std::pair<point, Node *> RTreePoint;
-    typedef bgi::rtree<RTreePoint, bgi::rstar<16> > NodeRTree;
-
 
     typedef boost::heap::fibonacci_heap<Node *, 
             boost::heap::compare<node_compare> > Queue;
@@ -49,6 +48,11 @@ class RRTx
     typedef boost::unordered_map<Node *, handle_t> NodeHash;
     typedef boost::unordered_map<Node *, bool> OrphanHash;
 
+    typedef ompl::NearestNeighbors<Node *> NearestNeighbors;
+    typedef ompl::base::SpaceInformationPtr SpaceInformationPtr;
+    typedef ompl::base::OptimizationObjectivePtr OptimizationObjectivePtr;
+    typedef ompl::base::ProblemDefinitionPtr ProblemDefinitionPtr;
+    typedef ompl::base::StateSamplerPtr StateSamplerPtr;
 
     public:
 
@@ -57,14 +61,12 @@ class RRTx
     
         
                             RRTx            ();
-                            RRTx            (costmap_2d::Costmap2D *costmap);
+                            RRTx            (SpaceInformationPtr si);
                             ~RRTx           (){}
 
         void                setCostmap      (costmap_2d::Costmap2D *costmap);
         void                setMaxDist      (double max_dist);
-        void                init            (geometry_msgs::Pose start,
-                                             geometry_msgs::Pose goal);
-        void                init            (double sx, double sy, double stheta, double gx, double gy);
+        void                init            (ProblemDefinitionPtr pdef);
         void                grow            (unsigned int iteration);
         void                updateTree      (double origin_x, double origin_y, double size_x, double size_y);
         Node                rootNode        ();
@@ -100,7 +102,6 @@ class RRTx
         void                updateRadius    ();
         Node                randomNode      ();
         bool                isObstacle      (Node v);
-        bool                isOutOfBound    (unsigned int mx, unsigned int my);
         void                grow            ();
         double              getAngle        (Node a, Node b, Node c);
         double              cost            (Node *a, Node *b);
@@ -134,7 +135,10 @@ class RRTx
 
         //  R* Tree for efficient spacial k nearest neighbors (KNN) search
         //  and helps for the radius search
-        NodeRTree   rtree;
+        //NodeRTree   rtree;
+
+        // OMPL NearestNeigbhors interface for KNN and distance search
+        std::shared_ptr<NearestNeighbors> nn_;
 
         // Orphan Nodes after adding obstacles
         OrphanHash orphanHash;
@@ -159,7 +163,6 @@ class RRTx
         double  y;
 
         Node    *vbot_;
-        double  vbot_theta;
         Node    *goal_;
 
         std::vector<geometry_msgs::Point> smooth_path;
@@ -172,15 +175,20 @@ class RRTx
 
         std::string map_frame;
 
-        BSplinePathSmoother smoother;
-        KinematicPathBuilder builder;
-        bool constraint = false;
+        // BSplinePathSmoother smoother;
+        // KinematicPathBuilder builder;
+        // bool constraint = false;
         double kmax;
 
         std::vector<Node *> lastPath;
         geometry_msgs::Pose lastPose;
 
-        std::vector<Trajectory *> infTrajectories;
+        // std::vector<Trajectory *> infTrajectories;
+
+        SpaceInformationPtr si_;
+        OptimizationObjectivePtr opt_;
+        StateSamplerPtr sampler_;
+        ProblemDefinitionPtr pdef_;
 
 };
 

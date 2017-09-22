@@ -8,6 +8,8 @@
 #include <visualization_msgs/Marker.h>
 #include <geometry_msgs/PoseStamped.h>
 
+#include <ompl/base/spaces/SE2StateSpace.h>
+
 #define GOAL_ID 0
 #define VBOT_ID 1
 #define PATH_NODE_ID 2
@@ -19,6 +21,7 @@
 
 namespace rrt
 {
+
     class RRTxPublisher
     {
         public:
@@ -51,8 +54,8 @@ namespace rrt
             goal.color.r               = 1;
 
             geometry_msgs::Point pgoal;
-            pgoal.x = goal_->x;
-            pgoal.y = goal_->y;
+            pgoal.x = getX(goal_);
+            pgoal.y = getY(goal_);
             pgoal.z = 1;
             goal.points.push_back(pgoal);
 
@@ -76,13 +79,14 @@ namespace rrt
             vbot.color.g               = 1;
 
             geometry_msgs::Point pvbot;
-            pvbot.x = vbot_->x;
-            pvbot.y = vbot_->y;
+            pvbot.x = getX(vbot_);
+            pvbot.y = getY(vbot_);
             pvbot.z = 1;
             vbot.points.push_back(pvbot);
 
-            pvbot.x = vbot_->parent->x;
-            pvbot.y = vbot_->parent->y;
+            pvbot.x = getX(vbot_->parent);
+            pvbot.y = getY(vbot_->parent);
+
             vbot.points.push_back(pvbot);
 
             marker_pub.publish(vbot);
@@ -128,16 +132,16 @@ namespace rrt
             for(int i = 0; i < path.size(); i++)
             {
                 geometry_msgs::Point p;
-                p.x = path[i]->x;
-                p.y = path[i]->y;
+                p.x = getX(path[i]);
+                p.y = getY(path[i]);
 
                 nodes.points.push_back(p);
 
                 if (i < path.size() - 1)
                 {
                     edges.points.push_back(p);
-                    p.x = path[i+1]->x;
-                    p.y = path[i+1]->y;
+                    p.x = getX(path[i+1]);
+                    p.y = getY(path[i+1]);
                     edges.points.push_back(p);
                 }
 
@@ -183,8 +187,8 @@ namespace rrt
                 for (auto node : nodeContainer)
                 {
                     geometry_msgs::Point p1, p2;
-                    p1.x = node.x;
-                    p1.y = node.y;
+                    p1.x = getX(&node);
+                    p1.y = getY(&node);
 
                     nodes.points.push_back(p1);
 
@@ -192,8 +196,8 @@ namespace rrt
                         continue;
 
                     edges.points.push_back(p1);
-                    p2.x = node.parent->x;
-                    p2.y = node.parent->y;
+                    p2.x = getX(node.parent);
+                    p2.y = getY(node.parent);
                     edges.points.push_back(p2);
                 }
 
@@ -222,17 +226,29 @@ namespace rrt
             for(auto traj : trajectories)
             {
                 geometry_msgs::Point p1, p2;
-                p1.x = traj->source->x;
-                p1.y = traj->source->y;
+                p1.x = getX(traj->source);
+                p1.y = getY(traj->source);
                 
-                p2.x = traj->target->x;
-                p2.y = traj->target->y;
+                p2.x = getX(traj->target);
+                p2.y = getY(traj->target);
 
                 edges.points.push_back(p1);
                 edges.points.push_back(p2);
             }
 
             marker_pub.publish(edges);
+        }
+
+        protected:
+
+        double getX(Node *v)
+        {
+            return v->state->as<ompl::base::SE2StateSpace::StateType>()->getX();
+        }
+
+        double getY(Node *v)
+        {
+            return v->state->as<ompl::base::SE2StateSpace::StateType>()->getY();
         }
 
         private:

@@ -20,6 +20,12 @@ find_package(catkin REQUIRED COMPONENTS
   costmap_converter
 )
 
+# OMPL library
+find_package(OMPL REQUIRED)
+if (NOT OMPL_FOUND)
+  message(SEND_ERROR "Failed to find OMPL! Install OMPL and try again!")
+endif ()
+
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED COMPONENTS system)
 
@@ -109,7 +115,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+  INCLUDE_DIRS include
    LIBRARIES rrtx
 #  CATKIN_DEPENDS geometry_msgs nav_core roscpp std_msgs
 #  DEPENDS system_lib
@@ -125,6 +131,7 @@ catkin_package(
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include/
   ${catkin_INCLUDE_DIRS}
+  ${OMPL_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -205,17 +212,19 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_library(path_lib src/kinematic_path_builder.cpp)
-target_link_libraries(path_lib ${catkink_LIBRARIES})
+#add_library(path_lib src/kinematic_path_builder.cpp)
+#target_link_libraries(path_lib ${catkink_LIBRARIES})
 
+# path_lib
 add_library(rrtx_lib src/rrtx.cpp)
-target_link_libraries(rrtx_lib ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} boost_system path_lib)
+target_link_libraries(rrtx_lib ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} boost_system)
 
-add_library(rrtx_planner_lib src/rrtx_planner.cpp)
-target_link_libraries(rrtx_planner_lib rrtx_lib ${costmap_converter_LIBRARIES})
+#add_library(rrtx_planner_lib src/rrtx_planner.cpp)
+#target_link_libraries(rrtx_planner_lib rrtx_lib ${costmap_converter_LIBRARIES})
 
 add_executable(rrtx_node src/rrtx_node.cpp)
-target_link_libraries(rrtx_node rrtx_lib ${costmap_converter_LIBRARIES})
+target_link_libraries(rrtx_node rrtx_lib ${costmap_converter_LIBRARIES} ${OMPL_LIBRARIES})
 
-add_executable(rtree src/rtree.cpp)
+add_executable(testt src/testt.cpp)
+target_link_libraries(testt ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} ${OMPL_LIBRARIES} boost_system rrtx_lib)
 

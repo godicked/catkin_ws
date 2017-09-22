@@ -21,6 +21,21 @@
 
 #include "rrtx/rrtx.hpp"
 
+
+#include <rrtx/reeds_shepp_config.hpp>
+
+#include <ompl/geometric/planners/rrt/RRTstar.h>
+#include <ompl/base/spaces/SE2StateSpace.h>
+#include <ompl/base/ProblemDefinition.h>
+#include <ompl/base/MotionValidator.h>
+
+
+using namespace ompl::geometric;
+using namespace ompl::base;
+using namespace costmap_2d;
+using namespace rrt;
+using namespace std;
+
 rrt::RRTx *rrtx;
 ros::Publisher path_pub;
 
@@ -30,13 +45,27 @@ double max_steering;
 double wheelbase;
 bool constraint;
 
+typedef ReedsSheppStateSpace::StateType RState;
+
+ProblemDefinitionPtr pdp;
+RState *goal_;
+RState *start_;
+
 costmap_2d::Costmap2D *cost;
+
+StateSpacePtr ss;
 
 geometry_msgs::Pose start;
 
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
 {
     start = pose.pose.pose;
+    start_->setX(start.position.x);
+    start_->setY(start.position.y);
+
+    cout << "done" << endl;
+    pdp->clearStartStates();
+    pdp->addStartState(start_);
 }
 
 void goalCallback(geometry_msgs::PoseStamped goal)
@@ -53,7 +82,12 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     if(constraint)
         rrtx->setConstraint(max_steering, wheelbase);
     
-    rrtx->init(start, goal.pose); 
+    goal_->setX(goal.pose.position.x);
+    goal_->setY(goal.pose.position.y);
+
+    pdp->clearGoal();
+    pdp->setGoalState(goal_);
+    rrtx->init(pdp); 
     rrtx->grow(growSize);
 
     rrt::RRTx::Path path;
@@ -85,10 +119,12 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 
 int main(int argc, char **argv)
 {
+    
     ros::init(argc, argv, "rrtx_node");
     
     ros::NodeHandle n("~/");
     n.setParam("bool_param", false);
+
 
     n.param<int>("grow_size", growSize, 1000);
     n.param<double>("max_dist", maxDist, 2.0);
@@ -134,7 +170,22 @@ int main(int argc, char **argv)
     // }
 
     cost = costmap.getCostmap();
-    rrtx = new rrt::RRTx(cost);
+
+    StateSpacePtr ss( new CostmapStateSpace(cost, 10.0) );
+
+    goal_ = ss->allocState()->as<RState>();
+    start_ = ss->allocState()->as<RState>();
+
+    SpaceInformationPtr si( new SpaceInformation(ss));
+    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), cost) );
+    OptimizationObjectivePtr oop( new CostmapOptimizationObjective(si, cost) );
+    pdp.reset( new ProblemDefinition(si) );
+    // MotionValidatorPtr mvp( new ReedsSheppMotionValidator(si.get()));
+
+    pdp->setOptimizationObjective( oop );
+    si->setStateValidityChecker( svcp );
+    
+    rrtx = new RRTx(si);
     rrtx->setMaxDist(maxDist);
 
     // costmap_2d::Costmap2D small(

@@ -1,10 +1,18 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/index/rtree.hpp>
 
+
+#include <rrtx/rrtx_struct.hpp>
+
+#include <ompl/datastructures/NearestNeighbors.h>
+#include <ompl/geometric/planners/PlannerIncludes.h>
+#include <ompl/tools/config/SelfConfig.h>
+
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
 
 using namespace boost;
+using namespace rrt;
 
 
 typedef bg::model::point<double, 2, bg::cs::cartesian> point;
@@ -40,12 +48,16 @@ std::vector<RTreeBox> find_intersection(NodeRTree &tree, box s)
 
 int main(int argc, char **argv)
 {
-    NodeRTree rtree;
-    insert_segment(rtree, point(1,1), point(2,2), 0);
-    find_intersection(rtree, box(point(2,1), point(1,2)));
-    find_intersection(rtree, box(point(1,1), point(2,2)));
-    find_intersection(rtree, box(point(1,2), point(2,2)));
-    find_intersection(rtree, box(point(1.01,1), point(2.01,2)));
+    // NodeRTree rtree;
+    // insert_segment(rtree, point(1,1), point(2,2), 0);
+    // find_intersection(rtree, box(point(2,1), point(1,2)));
+    // find_intersection(rtree, box(point(1,1), point(2,2)));
+    // find_intersection(rtree, box(point(1,2), point(2,2)));
+    // find_intersection(rtree, box(point(1.01,1), point(2.01,2)));
+
+    //std::shared_ptr<ompl::NearestNeighbors<Node *>> nn;
+    //nn.reset(ompl::tools::SelfConfig::getDefaultNearestNeighbors<Node *>());
+
 
 
 }

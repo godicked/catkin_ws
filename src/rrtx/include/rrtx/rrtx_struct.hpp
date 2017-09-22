@@ -6,9 +6,12 @@
 #include <vector>
 #include <boost/unordered_map.hpp>
 
+#include <ompl/base/State.h>
 
 namespace rrt
 {
+
+
 
 struct NodeKey
 {
@@ -36,14 +39,13 @@ struct Node
     double  g       = std::numeric_limits<double>::infinity(); 
     double  lmc     = std::numeric_limits<double>::infinity();
 
-    double  x;
-    double  y;
+    ompl::base::State *state;
 
     std::vector<Node *> inNz;
     std::vector<Node *> outNz;
     
     std::vector<Node *> inNr;
-    std::vector<Node *> outNr; 
+    std::vector<Node *> outNr;
 };
 
 struct Trajectory
@@ -87,23 +89,23 @@ struct node_compare
 typedef boost::unordered_map<NodePair, Trajectory, hash_node_pair, node_pair_equal> TrajectoryHash;
 
 
-double angle(Node a, Node b, Node c)
-{
-    double x1, y1, x2, y2;
+// double angle(Node a, Node b, Node c)
+// {
+//     double x1, y1, x2, y2;
 
-    x1 = b.x - a.x;
-    y1 = b.y - a.y;
+//     x1 = b.x - a.x;
+//     y1 = b.y - a.y;
 
-    x2 = b.x - c.x;
-    y2 = b.y - c.y;
+//     x2 = b.x - c.x;
+//     y2 = b.y - c.y;
 
-    double dot = x1*x2 + y1*y2;
-    double cross = x1 * y2 - y1 * x2;
+//     double dot = x1*x2 + y1*y2;
+//     double cross = x1 * y2 - y1 * x2;
 
-    double angle = atan2(cross, dot);
+//     double angle = atan2(cross, dot);
 
-    return angle;
-}
+//     return angle;
+// }
 
 
 

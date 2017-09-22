@@ -4,56 +4,75 @@
 #include <visualization_msgs/Marker.h>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
+#include <ompl/base/goals/GoalState.h>
 
 
 using namespace std;
 using namespace boost;
+using namespace ompl;
+using namespace ompl::base;
 
 const double infinity = numeric_limits<double>::infinity();
 
 boost::random::mt19937 gen;
 
 
+
 namespace rrt
 {
 
-    double dist(geometry_msgs::Pose a, Node b)
+    void print(Node *v)
     {
-        double dx = a.position.x - b.x;
-        double dy = a.position.y - b.y;
+        double x, y;
+        x = v->state->as<SE2StateSpace::StateType>()->getX();
+        y = v->state->as<SE2StateSpace::StateType>()->getY();
 
-        return sqrt(dx*dx + dy*dy);
+        cout << x << " : " << y << endl;
     }
     
-    RRTx::RRTx()
+    RRTx::RRTx()    // double dist(geometry_msgs::Pose a, Node b)
+    // {
+    //     double dx = a.position.x - b.x;
+    //     double dy = a.position.y - b.y;
+
+    //     return sqrt(dx*dx + dy*dy);
+    // }
     {
         marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 1000);
         nh_.param<string>("map_frame", this->map_frame, "/map");
-        publisher.initialize(&nh_, map_frame);
+        //publisher.initialize(&nh_, map_frame);
     }
 
-    RRTx::RRTx(costmap_2d::Costmap2D *costmap) : RRTx()
+    // RRTx::RRTx(costmap_2d::Costmap2D *costmap) : RRTx()
+    // {
+    //     setCostmap(costmap);
+    // }
+
+    RRTx::RRTx(SpaceInformationPtr si) : si_(si)
     {
-        setCostmap(costmap);
+        nn_.reset( new ompl::NearestNeighborsGNAT<Node *>() );
+        nn_->setDistanceFunction([this](const Node *v, const Node *u) {
+            return si_->distance(v->state, u->state);
+        });
+
+        sampler_ = si_->allocStateSampler();
     }
 
-    void RRTx::setCostmap(costmap_2d::Costmap2D *costmap)
-    {
-        costmap_ = costmap;
-    }
+    // void RRTx::setCostmap(costmap_2d::Costmap2D *costmap)
+    // {
+    //     costmap_ = costmap;
+    // }
 
     void RRTx::setConstraint(double steering_angle, double wheelbase)
     {
-        builder = KinematicPathBuilder(nh_, wheelbase, steering_angle);
-        minDist = wheelbase;
-        constraint = true;
+        // builder = KinematicPathBuilder(nh_, wheelbase, steering_angle);
+        // minDist = wheelbase;
+        // constraint = true;
     }
     
     void RRTx::addVertex(Node *v)
     {
-        point v_point(v->x, v->y);
-        RTreePoint leaf = make_pair(v_point, v);
-        rtree.insert(leaf);
+        nn_->add(v);
     }
 
     vector<Node *> RRTx::inN(Node v)
@@ -87,63 +106,29 @@ namespace rrt
 
     Node *RRTx::nearest(Node v)
     {
-        vector<RTreePoint> result;
-        point p(v.x, v.y);
-
-        rtree.query(bgi::nearest(p, 2), back_inserter(result));
-
-        if(result[0].second != vbot_->parent)
-            return result[0].second;
-        return result[1].second; 
+        return nn_->nearest(&v);
     }
 
     vector<Node *> RRTx::near(Node v)
     {
-        vector<RTreePoint> search;
-        point p1(v.x - radius, v.y - radius), 
-              p2(v.x + radius, v.y + radius);
-
-        box b(p1, p2);
-
         vector<Node *> nodes;
-        rtree.query(bgi::intersects(b), back_inserter(search));
-        for(int i = 0; i < search.size(); i++)
-        {
-            Node *node  = search[i].second;
-            float dist  = distance(*node, v);
-
-            if(dist > radius)
-            {
-                continue;
-            }
-
-            nodes.push_back(node);
-        }
-
+        // cout << "radius is " << radius << endl;
+        nn_->nearestR(&v, radius+0.001, nodes);
         return nodes;
     }
 
     double RRTx::distance(Node v, Node u)
     {
-        double dx2 = (v.x - u.x) * (v.x - u.x);
-        double dy2 = (v.y - u.y) * (v.y - u.y);
-
-        return sqrt(dx2 + dy2);
+        return si_->distance(v.state, u.state);
     }
-
 
     Node RRTx::saturate(Node v, Node u)
     {
         double dist = distance(v, u);
-        if(dist > radius)
+        if(dist > maxDist)
         {
-            double dx = (v.x - u.x) / dist;
-            double dy = (v.y - u.y) / dist;
-
-            v.x = u.x + dx * (radius - 0.001);
-            v.y = u.y + dy * (radius - 0.001);
+            si_->getStateSpace()->interpolate(u.state, v.state, maxDist / dist, v.state);
         }
-
         return v;
     }
 
@@ -180,41 +165,31 @@ namespace rrt
 
     vector<Node *> RRTx::findTrajectories(Node *v, vector<Node *> nodes)
     {
+        // cout << "find in: " << nodes.size() << endl;
         vector<Node *> exist;
+
+        // add start Node if v is near. vbot_ is not stored in the NearestNeigbhors datastructure
+        if(distance(*v, *vbot_) <= radius)
+        {
+            nodes.push_back(vbot_);
+        }
+
         for(auto u : nodes)
         {
             if(trajectoryExist(v, u))
             {
+                // cout << "exist" << endl;
                 makeTrajectory(v, u);
                 exist.push_back(u);
             }
         }
+
         return exist;
     }
 
     bool RRTx::trajectoryExist(Node *v, Node *u)
     {
-        double dist = distance(*v, *u);
-
-        double dx = u->x - v->x;
-        double dy = u->y - v->y;
-
-        double resolution = costmap_->getResolution();
-        for(double i = 0; i < dist - resolution; i += resolution)
-        {
-            double wx = v->x + dx * (i / dist);
-            double wy = v->y + dy * (i / dist);
-           
-           unsigned int mx, my;
-            costmap_->worldToMap(wx, wy, mx, my);
-            //ROS_INFO("test %d,%d", mx, my);
-            unsigned char cost = costmap_->getCost(mx, my);
-            
-            if(cost > 50)
-                return false;
-        }
-        
-        return true;
+        return si_->checkMotion(v->state, u->state);
     }
 
     Trajectory *RRTx::makeTrajectory(Node *v, Node *u)
@@ -224,24 +199,17 @@ namespace rrt
         return &trajectories[make_pair(v, u)];
     }
 
-    bool RRTx::isOutOfBound(unsigned int mx, unsigned int my)
-    {
-        return  mx < 0 || my < 0 ||
-                mx >= costmap_->getSizeInCellsX() ||
-                my >= costmap_->getSizeInCellsY();
-    }
+    // bool RRTx::isOutOfBound(unsigned int mx, unsigned int my)
+    // {
+    //     return  mx < 0 || my < 0 ||
+    //             mx >= costmap_->getSizeInCellsX() ||
+    //             my >= costmap_->getvector<RTreePoint> result;
+    //     point p(v.x, v.y);
+    // }
 
     bool RRTx::isObstacle(Node v)
     {
-        unsigned int mx, my;
-        costmap_->worldToMap(v.x, v.y, mx, my);
-
-        //if(isOutOfBound(mx, my))
-        //    return true;
-
-        unsigned char cost = costmap_->getCost(mx, my);
-
-        return cost > 150;
+        return !si_->isValid(v.state);
     }
 
     /*  Algorithm 3: cullNeighbors(v, r)
@@ -280,9 +248,12 @@ namespace rrt
         //(called in findParent)
 
         //cout << "near" << endl;
+        //cout << "full size " << nn_->size() << endl;
+
         vector<Node *> nearNodes = near(*v);
         vector<Node *> validNodes = findTrajectories(v, nearNodes);
 
+        // cout << "found " << validNodes.size() << endl;
         //cout << "findParent" << endl;
         findParent(v, validNodes);
         if(v->parent == nullptr)
@@ -419,26 +390,22 @@ namespace rrt
 
      void RRTx::updateRadius()
      {
-         int    n       = rtree.size();
+         // at start nn_ size is 1, so we add one to avoid 0 radius
+         int    n       = nn_->size() + 1;
          double term1   = (y / M_PI) * (log(n) / n);
          radius  = min( pow(term1, 0.5), maxDist);
 
          //cout << "new radius: " << radius << endl;
      }
 
-
+     /* randomNode
+     ** returns a randomly sampled Node */
      Node RRTx::randomNode()
      {
          Node node;
-         
-         boost::random::uniform_int_distribution<> xr(0, costmap_->getSizeInCellsX() -1);
-         boost::random::uniform_int_distribution<> yr(0, costmap_->getSizeInCellsY() -1);
+         node.state = si_->allocState();
+         sampler_->sampleUniform(node.state);
 
-         int x = xr(gen);
-         int y = yr(gen);
-
-         costmap_->mapToWorld(x, y, node.x, node.y);
-         
          return node;
      }
 
@@ -456,13 +423,16 @@ namespace rrt
 
      void RRTx::grow()
      {
-         
+         //cout << "grow" << endl;
          updateRadius();
 
          Node new_v     = randomNode();
+        //   cout << endl;
+        //  print(&new_v);
          Node *vnearest = nearest(new_v);
          new_v = saturate(new_v, *vnearest);
          
+        //  print(&new_v);
 
          if(!isObstacle(new_v))
          {
@@ -472,6 +442,7 @@ namespace rrt
              extend(v);
              if(v->parent != nullptr)
              {
+                // cout << "add" << endl;
                 rewireNeighbors(v);
                 reduceInconsist();
              }
@@ -491,84 +462,62 @@ namespace rrt
          ROS_INFO("RRTx grow took %.2f seconds ( %ld nodes )", d.toSec(), nodeContainer.size());
      }
 
-     void RRTx::init(geometry_msgs::Pose start, geometry_msgs::Pose goal)
+     void RRTx::init(ProblemDefinitionPtr pdef)
      {
-         tf::Pose pose;
-         tf::poseMsgToTF(start, pose);
-         double yaw_angle = tf::getYaw(pose.getRotation());
 
-         init(start.position.x, start.position.y, yaw_angle, goal.position.x, goal.position.y);
-         lastPose = start;
-     }
+        pdef_ = pdef;
 
-     void RRTx::init(double sx, double sy, double stheta, double gx, double gy)
-     {
-         ROS_INFO("Init RRTx.  start: %.1f:%.1f, goal: %.1f:%.1f", sx, sy, gx, gy);
-         ROS_INFO("Costmap size: %.1f:%.1f, costmap resolution %.2f", costmap_->getSizeInMetersX(), 
-         costmap_->getSizeInMetersY(), costmap_->getResolution());
+        // ROS_INFO("Init RRTx.  start: %.1f:%.1f, goal: %.1f:%.1f", sx, sy, gx, gy);
+        // ROS_INFO("Costmap size: %.1f:%.1f, costmap resolution %.2f", costmap_->getSizeInMetersX(), 
+        // costmap_->getSizeInMetersY(), costmap_->getResolution());
 
-         rtree.clear();
-         queue.clear();
-         nodeHash.clear();
-         nodeContainer.clear();
-         trajectories.clear();
-         infTrajectories.clear();
-         orphanHash.clear();
-         
-         //gen = boost::random::mt19937(time(0));
-         
-         vbot_theta = stheta;
-         Node vbot;
-         vbot.x = sx;
-         vbot.y = sy;
+        queue.clear();
+        nodeHash.clear();
+        nodeContainer.clear();
+        trajectories.clear();
+        // infTrajectories.clear();
+        orphanHash.clear();
+        
+        //gen = boost::random::mt19937(time(0));
+        
+        Node vbot;
+        vbot.state = pdef_->getStartState(0);
 
-         Node start;
-         start.x = vbot.x + cos(stheta) * minDist;
-         start.y = vbot.y + sin(stheta) * minDist;
+        Node goal;
+        goal.state = pdef_->getGoal()->as<GoalState>()->getState();
+        goal.g     = 0;
+        goal.lmc   = 0;
 
+        if(isObstacle(goal))
+        ROS_WARN("goal is obstacle");
 
-         Node goal;
-         goal.x     = gx;
-         goal.y     = gy;
-         goal.g     = 0;
-         goal.lmc   = 0;
+        nodeContainer.push_back(vbot);
+        vbot_ = &nodeContainer.back();
 
-         if(isObstacle(goal))
-            ROS_WARN("goal is obstacle");
-
-         nodeContainer.push_back(vbot);
-         vbot_ = &nodeContainer.back();
-         //addVertex(vbot_);
-
-         nodeContainer.push_back(start);
-         Node * start_ = &nodeContainer.back();
-         addVertex(start_);
-         vbot_->parent = start_;
-
-         nodeContainer.push_back(goal);
-         goal_ = &nodeContainer.back();
-         addVertex(goal_);
+        nodeContainer.push_back(goal);
+        goal_ = &nodeContainer.back();
+        addVertex(goal_);
 
      }
 
      // get signed angle in range ]-pi; pi]
-     double RRTx::getAngle(Node a, Node b, Node c)
-     {
-        double x1, y1, x2, y2;
+    //  double RRTx::getAngle(Node a, Node b, Node c)
+    //  {
+    //     double x1, y1, x2, y2;
 
-        x1 = b.x - a.x;
-        y1 = b.y - a.y;
+    //     x1 = b.x - a.x;
+    //     y1 = b.y - a.y;
 
-        x2 = b.x - c.x;
-        y2 = b.y - c.y;
+    //     x2 = b.x - c.x;
+    //     y2 = b.y - c.y;
 
-        double dot = x1*x2 + y1*y2;
-        double cross = x1 * y2 - y1 * x2;
+    //     double dot = x1*x2 + y1*y2;
+    //     double cross = x1 * y2 - y1 * x2;
 
-        double angle = atan2(cross, dot);
+    //     double angle = atan2(cross, dot);
 
-        return angle;
-     }
+    //     return angle;
+    //  }
 
      void RRTx::updateTree(double origin_x, double origin_y, double size_x, double size_y)
      {
@@ -677,113 +626,100 @@ namespace rrt
 
      void RRTx::addObstacle(double origin_x, double origin_y, double size_x, double size_y)
      {
-         vector<Trajectory *> hit;
-         vector<RTreePoint> search;
-         box b(point(origin_x, origin_y), point(origin_x + size_x, origin_y + size_y));
-         rtree.query(bgi::intersects(b), back_inserter(search));
+    //     vector<Trajectory *> hit;
+    //     vector<RTreePoint> search;
+    //     box b(point(origin_x, origin_y), point(origin_x + size_x, origin_y + size_y));
+    //     rtree.query(bgi::intersects(b), back_inserter(search));
 
-        //  ROS_INFO("found %ld nodes", search.size());
+    // //  ROS_INFO("found %ld nodes", search.size());
 
-         for(auto s : search)
-         {
-            Node *v = s.second;
+    //     for(auto s : search)
+    //     {
+    //     Node *v = s.second;
 
-            for(auto n : outN(*v))
-            {
-                if(cost(v, n) == infinity) continue;
-                if(!trajectoryExist(v, n))
-                {
-                    setCost(v, n, infinity);
-                    hit.push_back(trajectory(v, n));
-                }
-            }
-         }
+    //     for(auto n : outN(*v))
+    //     {
+    //         if(cost(v, n) == infinity) continue;
+    //         if(!trajectoryExist(v, n))
+    //         {
+    //             setCost(v, n, infinity);
+    //             hit.push_back(trajectory(v, n));
+    //         }
+    //     }
+    //     }
 
-        //  ROS_INFO("hit %ld trajectories", hit.size());
+    // //  ROS_INFO("hit %ld trajectories", hit.size());
 
-         for(auto traj : hit)
-         {
-            infTrajectories.push_back(traj);
-            if(traj->source->parent == traj->target)
-            {
-                //ROS_INFO("is parent!");
-                //infTrajectories.push_back(traj);
-                verrifyOrphan(traj->source);
-            }
-            if(traj->target->parent == traj->source)
-            {
-                //ROS_INFO("is parent!");
-                //infTrajectories.push_back(traj);
-                verrifyOrphan(traj->target);
-            }
-         }
-     }
+    //     for(auto traj : hit)
+    //     {
+    //     infTrajectories.push_back(traj);
+    //     if(traj->source->parent == traj->target)
+    //     {
+    //         //ROS_INFO("is parent!");
+    //         //infTrajectories.push_back(traj);
+    //         verrifyOrphan(traj->source);
+    //     }
+    //     if(traj->target->parent == traj->source)
+    //     {
+    //         //ROS_INFO("is parent!");
+    //         //infTrajectories.push_back(traj);
+    //         verrifyOrphan(traj->target);
+    //     }
+    //     }
+    }
 
   
-     bool RRTx::computePath(Path &path)
-     {
-         
-         ros::Time t = ros::Time::now();
-         vector<Node *> nodes;
+    bool RRTx::computePath(Path &path)
+    {
+        
+        ros::Time t = ros::Time::now();
+        vector<Node *> nodes;
 
-         if(constraint)
-         {
-            nodes = builder.buildPath(vbot_, goal_, &trajectories);
-            builder.publishVisited();
-            // rewire parent so the path gets recalculated on obstacle change
-            for(int i = 1; i < nodes.size() -1; i++)
-            {
-                makeParentOf(nodes[i+1], nodes[i]);
-            }
-         }
-         else
-         {
-            Node *v = vbot_;
-            // follow optimal path
-            while(v != nullptr)
-            {
-                nodes.push_back(v);
-                v = v->parent;
-            }
-         }
-         
-         for(auto node : nodes)
-         {
-            geometry_msgs::Pose p;
-            p.position.x = node->x;
-            p.position.y = node->y;
+        Node *v = vbot_;
+        //follow optimal path
+        while(v != nullptr)
+        {
+            nodes.push_back(v);
+            v = v->parent;
+        }
+        
+        for(auto node : nodes)
+        {
+            // geometry_msgs::Pose p;
+            // p.position.x = node->x;
+            // p.position.y = node->y;
 
-            p.orientation.x = 0;
-            p.orientation.y = 0;
-            p.orientation.z = 0;
-            p.orientation.w = 1;
+            // p.orientation.x = 0;
+            // p.orientation.y = 0;
+            // p.orientation.z = 0;
+            // p.orientation.w = 1;
 
-            path.push_back(p);
-         }
+            // path.push_back(p);
+        }
 
-         ros::Duration d = ros::Time::now() - t;
-         //ROS_INFO("Get Path took %.2f seconds", d.toSec());
+        ros::Duration d = ros::Time::now() - t;
+        //ROS_INFO("Get Path took %.2f seconds", d.toSec());
 
-         lastPath = nodes;  
+        lastPath = nodes;  
 
-         return  true;
-     }
+        return  true;
+    }
 
     void RRTx::updateRobot(geometry_msgs::Pose robot)
     {
-        Node vbot;
-        vbot.x = robot.position.x;
-        vbot.y = robot.position.y;
+        // Node vbot;
+        // vbot.x = robot.position.x;
+        // vbot.y = robot.position.y;
 
-        if(lastPath.size() > 3)
-        {
-            if(distance(vbot, *lastPath[1]) > distance(vbot, *lastPath[2]) && cost(lastPath[1], lastPath[2]) != infinity)
-            {
-                vbot_ = lastPath[1];
-                makeParentOf(lastPath[2], vbot_);
-                updateKey(vbot_);
-            }
-        }
+        // if(lastPath.size() > 3)
+        // {
+        //     if(distance(vbot, *lastPath[1]) > distance(vbot, *lastPath[2]) && cost(lastPath[1], lastPath[2]) != infinity)
+        //     {
+        //         vbot_ = lastPath[1];
+        //         makeParentOf(lastPath[2], vbot_);
+        //         updateKey(vbot_);
+        //     }
+        // }
     }
 
     void RRTx::setMaxDist(double dist)
@@ -791,14 +727,14 @@ namespace rrt
         maxDist = dist;
         // As defined in RRT* Y >= 2 * dim + (1 + 1/dim) * u(XFree)
         // u = volume, XFree = free space. y > Y since we use total volume of map
-        y = 6.0 * costmap_->getSizeInMetersX() * costmap_->getSizeInMetersY();
+        y = 6.0 * si_->getSpaceMeasure();
     }
 
     void RRTx::publish(bool path, bool tree)
     {
         
         publisher.publishTree(vbot_, goal_, nodeContainer, true);
-        publisher.publishInfTrajectories(infTrajectories);
+        // publisher.publishInfTrajectories(infTrajectories);
         return;
 
     }

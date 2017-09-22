@@ -72,5 +72,5 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
 
     std::vector<geometry_msgs::PoseStamped> last_plan;
 };
-};
+}; // namespace rrt
 #endif
