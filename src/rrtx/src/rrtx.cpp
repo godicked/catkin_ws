@@ -40,7 +40,6 @@ namespace rrt
     {
         marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 1000);
         nh_.param<string>("map_frame", this->map_frame, "/map");
-        //publisher.initialize(&nh_, map_frame);
     }
 
     // RRTx::RRTx(costmap_2d::Costmap2D *costmap) : RRTx()
@@ -48,8 +47,10 @@ namespace rrt
     //     setCostmap(costmap);
     // }
 
-    RRTx::RRTx(SpaceInformationPtr si) : si_(si)
+    RRTx::RRTx(SpaceInformationPtr si) : RRTx()
     {
+        si_ = si;
+        publisher.initialize(&nh_, map_frame, si_);
         nn_.reset( new ompl::NearestNeighborsGNAT<Node *>() );
         nn_->setDistanceFunction([this](const Node *v, const Node *u) {
             return si_->distance(v->state, u->state);
@@ -119,7 +120,9 @@ namespace rrt
 
     double RRTx::distance(Node v, Node u)
     {
-        return si_->distance(v.state, u.state);
+        double dist = si_->distance(v.state, u.state);
+        // cout << "dist " << dist << endl;
+        return dist;
     }
 
     Node RRTx::saturate(Node v, Node u)
@@ -136,13 +139,12 @@ namespace rrt
     {
         for(auto u : nodes)
         {
-            double dist = distance(*v, *u);
+            double c = cost(v, u);
             
-            if(v->lmc > dist + u->lmc)
+            if(v->lmc > c + u->lmc)
             {
                 v->parent    = u;
-                v->lmc       = dist + u->lmc;
-                
+                v->lmc       = c + u->lmc;
             }
         }
         
@@ -194,8 +196,8 @@ namespace rrt
 
     Trajectory *RRTx::makeTrajectory(Node *v, Node *u)
     {
-        double dist = distance(*v, *u);
-        trajectories[make_pair(v,u)] = Trajectory(u, v, dist);
+        double cost = opt_->motionCost(v->state, u->state).value();
+        trajectories[make_pair(v,u)] = Trajectory(u, v, cost);
         return &trajectories[make_pair(v, u)];
     }
 
@@ -466,7 +468,7 @@ namespace rrt
      {
 
         pdef_ = pdef;
-
+        opt_ = pdef_->getOptimizationObjective();
         // ROS_INFO("Init RRTx.  start: %.1f:%.1f, goal: %.1f:%.1f", sx, sy, gx, gy);
         // ROS_INFO("Costmap size: %.1f:%.1f, costmap resolution %.2f", costmap_->getSizeInMetersX(), 
         // costmap_->getSizeInMetersY(), costmap_->getResolution());
@@ -671,37 +673,14 @@ namespace rrt
   
     bool RRTx::computePath(Path &path)
     {
+        path.clear();
         
-        ros::Time t = ros::Time::now();
-        vector<Node *> nodes;
-
         Node *v = vbot_;
-        //follow optimal path
         while(v != nullptr)
         {
-            nodes.push_back(v);
+            path.push_back(v);
             v = v->parent;
         }
-        
-        for(auto node : nodes)
-        {
-            // geometry_msgs::Pose p;
-            // p.position.x = node->x;
-            // p.position.y = node->y;
-
-            // p.orientation.x = 0;
-            // p.orientation.y = 0;
-            // p.orientation.z = 0;
-            // p.orientation.w = 1;
-
-            // path.push_back(p);
-        }
-
-        ros::Duration d = ros::Time::now() - t;
-        //ROS_INFO("Get Path took %.2f seconds", d.toSec());
-
-        lastPath = nodes;  
-
         return  true;
     }
 

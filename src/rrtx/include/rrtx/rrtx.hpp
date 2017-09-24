@@ -57,7 +57,7 @@ class RRTx
     public:
 
         typedef std::list<Node> NodeContainer;
-        typedef std::vector<geometry_msgs::Pose> Path;
+        typedef std::vector<Node *> Path;
     
         
                             RRTx            ();

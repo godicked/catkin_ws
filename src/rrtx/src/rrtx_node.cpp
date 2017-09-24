@@ -54,8 +54,26 @@ RState *start_;
 costmap_2d::Costmap2D *cost;
 
 StateSpacePtr ss;
+SpaceInformationPtr si;
 
 geometry_msgs::Pose start;
+
+void buildRosPath(RRTx::Path &path, vector<geometry_msgs::Pose> &poses)
+{
+    for(auto node : path)
+    {
+        geometry_msgs::Pose p;
+        p.position.x = getX(node);
+        p.position.y = getY(node);
+
+        p.orientation.x = 0;
+        p.orientation.y = 0;
+        p.orientation.z = 0;
+        p.orientation.w = 1;
+
+        poses.push_back(p);
+    }
+}
 
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
 {
@@ -93,11 +111,16 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     rrt::RRTx::Path path;
     rrtx->computePath(path);
     
+    cout << "computed Path: " << path.size() << endl;
+
     rrt::BSplinePathSmoother smoother;
-    path = smoother.curvePath(path, 0.05);
+    // path = smoother.curvePath(path, 0.05);
+
+    vector<geometry_msgs::Pose> poses;
+    buildRosPath(path, poses);
 
     std::vector<geometry_msgs::PoseStamped> plan;
-    for(auto pose : path)
+    for(auto pose : poses)
     {
         //cout << pose.position.x << " " << pose.position.y << endl;
 
@@ -112,7 +135,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     spath.header = plan.back().header;
     spath.poses = plan;
     
-    path_pub.publish(spath);
+    //path_pub.publish(spath);
     
     rrtx->publish(true, true);
 }
@@ -171,12 +194,13 @@ int main(int argc, char **argv)
 
     cost = costmap.getCostmap();
 
-    StateSpacePtr ss( new CostmapStateSpace(cost, 10.0) );
+    StateSpacePtr ss( new CostmapStateSpace(cost, 5.0) );
 
     goal_ = ss->allocState()->as<RState>();
     start_ = ss->allocState()->as<RState>();
 
-    SpaceInformationPtr si( new SpaceInformation(ss));
+    si.reset( new SpaceInformation(ss) );
+    MotionValidatorPtr mv( new CostmapMotionValidator(si.get()) );
     StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), cost) );
     OptimizationObjectivePtr oop( new CostmapOptimizationObjective(si, cost) );
     pdp.reset( new ProblemDefinition(si) );
@@ -184,6 +208,8 @@ int main(int argc, char **argv)
 
     pdp->setOptimizationObjective( oop );
     si->setStateValidityChecker( svcp );
+    si->setMotionValidator(mv);
+    // si->setStateValidityCheckingResolution(0.9);
     
     rrtx = new RRTx(si);
     rrtx->setMaxDist(maxDist);

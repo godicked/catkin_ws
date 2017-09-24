@@ -14,9 +14,17 @@ namespace rrt
     
 ompl::base::Cost state_cost(const ompl::base::State *state, costmap_2d::Costmap2D *costmap)
 {
-        auto *st = state->as<ompl::base::ReedsSheppStateSpace::StateType>();
+        auto st = state->as<ompl::base::ReedsSheppStateSpace::StateType>();
+
+        if(st->getX() < costmap->getOriginX() || st->getX() > costmap->getOriginX() + costmap->getSizeInMetersX() ||
+        st->getY() < costmap->getOriginY() || st->getY() > costmap->getOriginY() + costmap->getSizeInMetersY())
+        {
+            return ompl::base::Cost(255);
+        }
+
         unsigned int mx, my;
         costmap->worldToMap(st->getX(), st->getY(), mx, my);
+
         return ompl::base::Cost(costmap->getCost(mx ,my));
 }
 
@@ -66,7 +74,23 @@ public:
     virtual ompl::base::Cost motionCost(const ompl::base::State *s1, const ompl::base::State *s2) const
     {
         // motion cost is distance in StateSpace
-        return ompl::base::Cost(si_->distance(s1, s2));
+        auto ss = si_->getStateSpace()->as<ompl::base::ReedsSheppStateSpace>();
+        Path p = ss->reedsShepp(s1, s2);
+        double dist = 0;
+
+        for(int i = 0; i < 5; i++)
+        {
+            double d = p.length_[i];
+            if(d < 0)
+            {
+                dist -= 4 * d;  
+            }
+            else
+            {
+                dist += d;
+            }
+        }
+        return ompl::base::Cost(dist);
     }
 
 private:
@@ -97,15 +121,35 @@ public:
         setBounds(bd);
     }
 
-    // virtual double getMeasure() const
-    // {
-    //     return costmap_->getSizeInMetersX() * costmap_->getSizeInCellsY();
-    // } 
 
 private:
     costmap_2d::Costmap2D *costmap_;
 };
 
+class CostmapMotionValidator : public ompl::base::ReedsSheppMotionValidator
+{
+public:
+    CostmapMotionValidator(ompl::base::SpaceInformation *si) : ReedsSheppMotionValidator(si)
+    {
+    }
+
+    virtual bool checkMotion(const ompl::base::State *s1, const ompl::base::State *s2) const
+    {
+        // std::cout << "checkMotion" << std::endl;
+        std::vector<ompl::base::State *> states;
+        si_->getMotionStates(s1, s2, states, si_->distance(s1, s2) * 10, false, true);
+
+        for(auto s : states)
+        {
+            if(!si_->isValid(s))
+            {
+                // std::cout << "Motion not valid!" << std::endl;
+                return false;
+            }
+        }
+        return true;
+    }
+};
 
 
 }; // namespace rrt

@@ -1,5 +1,5 @@
-image: 1000x1000white.png
-resolution: 0.1
+image: road-test.png
+resolution: 0.05
 origin: [-1.5, -3, 0.0]
 occupied_thresh: 0.7
 free_thresh: 0.196
