@@ -83,7 +83,7 @@ public:
             double d = p.length_[i];
             if(d < 0)
             {
-                dist -= 4 * d;  
+                dist += -4 * d;  
             }
             else
             {
@@ -137,7 +137,7 @@ public:
     {
         // std::cout << "checkMotion" << std::endl;
         std::vector<ompl::base::State *> states;
-        si_->getMotionStates(s1, s2, states, si_->distance(s1, s2) * 10, false, true);
+        si_->getMotionStates(s1, s2, states, si_->distance(s1, s2), false, true);
 
         for(auto s : states)
         {

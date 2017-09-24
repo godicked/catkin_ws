@@ -64,7 +64,7 @@ struct hash_node_pair
     {
         std::size_t seed = 0;
         seed += boost::hash<Node *>()(p.first);
-        seed += boost::hash<Node *>()(p.second);
+        seed ^= boost::hash<Node *>()(p.second);
         return seed;
     }
 };
@@ -73,8 +73,7 @@ struct node_pair_equal
 {
     bool operator()(const NodePair &p1, const NodePair &p2) const
     {
-        return  p1.first == p2.first && p1.second == p2.second || 
-                p1.first == p2.second && p1.second == p2.first;
+        return  p1.first == p2.first && p1.second == p2.second;
     }
 };
 

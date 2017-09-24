@@ -182,6 +182,7 @@ namespace rrt
             {
                 // cout << "exist" << endl;
                 makeTrajectory(v, u);
+                makeTrajectory(u, v);
                 exist.push_back(u);
             }
         }
