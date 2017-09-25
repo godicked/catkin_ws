@@ -8,8 +8,9 @@
 #include <visualization_msgs/Marker.h>
 #include <geometry_msgs/PoseStamped.h>
 
-#include <ompl/base/spaces/SE2StateSpace.h>
-#include <ompl/base/spaces/ReedsSheppStateSpace.h>
+// #include <ompl/base/spaces/SE2StateSpace.h>
+// #include <ompl/base/spaces/ReedsSheppStateSpace.h>
+#include <rrtx/reeds_shepp_config.hpp>
 #include <ompl/base/SpaceInformation.h>
 
 #define GOAL_ID 0
@@ -23,16 +24,6 @@
 
 namespace rrt
 {
-
-    double getX(Node *v)
-    {
-        return v->state->as<ompl::base::SE2StateSpace::StateType>()->getX();
-    }
-
-    double getY(Node *v)
-    {
-        return v->state->as<ompl::base::SE2StateSpace::StateType>()->getY();
-    }
 
     class RRTxPublisher
     {
@@ -63,15 +54,15 @@ namespace rrt
             goal.type                  = visualization_msgs::Marker::POINTS;
 
             goal.pose.orientation.w    = 1.0;
-            goal.scale.x               = 0.51;
-            goal.scale.y               = 0.51;
+            goal.scale.x               = 0.1;
+            goal.scale.y               = 0.1;
 
             goal.color.a               = 1;
             goal.color.r               = 1;
 
             geometry_msgs::Point pgoal;
-            pgoal.x = getX(goal_);
-            pgoal.y = getY(goal_);
+            pgoal.x = getX(goal_->state);
+            pgoal.y = getY(goal_->state);
             pgoal.z = 1;
             goal.points.push_back(pgoal);
 
@@ -87,16 +78,16 @@ namespace rrt
             vbot.type                  = visualization_msgs::Marker::POINTS;
 
             vbot.pose.orientation.w    = 1.0;
-            vbot.scale.x               = 0.51;
-            vbot.scale.y               = 0.51;
+            vbot.scale.x               = 0.1;
+            vbot.scale.y               = 0.1;
 
             vbot.color.a               = 1;
             vbot.color.r               = 1;
             vbot.color.g               = 1;
 
             geometry_msgs::Point pvbot;
-            pvbot.x = getX(vbot_);
-            pvbot.y = getY(vbot_);
+            pvbot.x = getX(vbot_->state);
+            pvbot.y = getY(vbot_->state);
             pvbot.z = 1;
             vbot.points.push_back(pvbot);
             std::cout << "goal" << std::endl;
@@ -118,8 +109,8 @@ namespace rrt
             nodes.action           = visualization_msgs::Marker::ADD;
             nodes.type             = visualization_msgs::Marker::POINTS;
 
-            nodes.scale.x          = 0.2;
-            nodes.scale.y          = 0.2;
+            nodes.scale.x          = 0.02;
+            nodes.scale.y          = 0.02;
 
             nodes.color.a          = 1;
             nodes.color.r          = 1;
@@ -148,8 +139,8 @@ namespace rrt
                 poseToLinesRviz(poses, edges.points);
 
                 geometry_msgs::Point p;
-                p.x = getX(v);
-                p.y = getY(v);
+                p.x = getX(v->state);
+                p.y = getY(v->state);
 
                 nodes.points.push_back(p);
             }
@@ -189,8 +180,8 @@ namespace rrt
                 nodes.action           = visualization_msgs::Marker::ADD;
                 nodes.type             = visualization_msgs::Marker::POINTS;
 
-                nodes.scale.x          = 0.5;
-                nodes.scale.y          = 0.5;
+                nodes.scale.x          = 0.05;
+                nodes.scale.y          = 0.05;
 
                 nodes.color.a          = 1;
                 nodes.color.r          = 0;
@@ -205,8 +196,8 @@ namespace rrt
                 edges.action           = visualization_msgs::Marker::ADD;
                 edges.type             = visualization_msgs::Marker::LINE_LIST;
 
-                edges.scale.x          = 0.2;
-                edges.scale.y          = 0.2;
+                edges.scale.x          = 0.02;
+                edges.scale.y          = 0.02;
 
                 edges.color.a          = 1;
                 edges.color.g          = 1;
@@ -214,8 +205,8 @@ namespace rrt
                 for (auto node : nodeContainer)
                 {
                     geometry_msgs::Point p1, p2;
-                    p1.x = getX(&node);
-                    p1.y = getY(&node);
+                    p1.x = getX(node.state);
+                    p1.y = getY(node.state);
 
                     nodes.points.push_back(p1);
 
@@ -257,11 +248,11 @@ namespace rrt
             for(auto traj : trajectories)
             {
                 geometry_msgs::Point p1, p2;
-                p1.x = getX(traj->source);
-                p1.y = getY(traj->source);
+                p1.x = getX(traj->source->state);
+                p1.y = getY(traj->source->state);
                 
-                p2.x = getX(traj->target);
-                p2.y = getY(traj->target);
+                p2.x = getX(traj->target->state);
+                p2.y = getY(traj->target->state);
 
                 edges.points.push_back(p1);
                 edges.points.push_back(p2);

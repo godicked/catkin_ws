@@ -21,11 +21,12 @@
 #include <rrtx/rrtx_struct.hpp>
 #include <rrtx/rrtx_publisher.hpp>
 
-#include <ompl/geometric/planners/rrt/RRTstar.h>
+// #include <ompl/geometric/planners/rrt/RRTstar.h>
 #include <ompl/datastructures/NearestNeighborsGNAT.h> 
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/OptimizationObjective.h>
 #include <ompl/base/StateSampler.h>
+#include <ompl/base/State.h>
 #include <ompl/base/ProblemDefinition.h>
 
 
@@ -57,14 +58,13 @@ class RRTx
     public:
 
         typedef std::list<Node> NodeContainer;
-        typedef std::vector<Node *> Path;
+        typedef std::vector<ompl::base::State *> Path;
     
         
                             RRTx            ();
                             RRTx            (SpaceInformationPtr si);
                             ~RRTx           (){}
-
-        void                setCostmap      (costmap_2d::Costmap2D *costmap);
+                            
         void                setMaxDist      (double max_dist);
         void                init            (ProblemDefinitionPtr pdef);
         void                grow            (unsigned int iteration);

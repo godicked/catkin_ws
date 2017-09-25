@@ -38,7 +38,7 @@ Visualization Manager:
       Namespaces:
         path: true
         pose: true
-        tree: true
+        tree: false
       Queue Size: 100
       Value: true
     - Alpha: 0.699999988
@@ -124,11 +124,11 @@ Visualization Manager:
         Value: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Scale: 5.43224049
+      Scale: 12.4928799
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 50.7519073
-      Y: 46.8877106
+      X: 24.8132362
+      Y: 24.0942421
     Saved: ~
 Window Geometry:
   Displays:

@@ -474,6 +474,7 @@ namespace rrt
         // ROS_INFO("Costmap size: %.1f:%.1f, costmap resolution %.2f", costmap_->getSizeInMetersX(), 
         // costmap_->getSizeInMetersY(), costmap_->getResolution());
 
+        nn_->clear();
         queue.clear();
         nodeHash.clear();
         nodeContainer.clear();
@@ -541,7 +542,7 @@ namespace rrt
 
          if(lastPath.size() > 1)
          {
-             makeParentOf(lastPath[1], vbot_);
+            //  makeParentOf(lastPath[1], vbot_);
          }
      }
 
@@ -679,10 +680,10 @@ namespace rrt
         Node *v = vbot_;
         while(v != nullptr)
         {
-            path.push_back(v);
+            path.push_back(v->state);
             v = v->parent;
         }
-        return  true;
+        return path.back() == goal_->state;
     }
 
     void RRTx::updateRobot(geometry_msgs::Pose robot)

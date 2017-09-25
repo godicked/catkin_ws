@@ -58,22 +58,6 @@ SpaceInformationPtr si;
 
 geometry_msgs::Pose start;
 
-void buildRosPath(RRTx::Path &path, vector<geometry_msgs::Pose> &poses)
-{
-    for(auto node : path)
-    {
-        geometry_msgs::Pose p;
-        p.position.x = getX(node);
-        p.position.y = getY(node);
-
-        p.orientation.x = 0;
-        p.orientation.y = 0;
-        p.orientation.z = 0;
-        p.orientation.w = 1;
-
-        poses.push_back(p);
-    }
-}
 
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
 {
@@ -109,7 +93,11 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     rrtx->grow(growSize);
 
     rrt::RRTx::Path path;
-    rrtx->computePath(path);
+    if(!rrtx->computePath(path))
+    {
+        ROS_WARN("no path found!");
+        return;
+    }
     
     cout << "computed Path: " << path.size() << endl;
 
@@ -117,7 +105,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     // path = smoother.curvePath(path, 0.05);
 
     vector<geometry_msgs::Pose> poses;
-    buildRosPath(path, poses);
+    buildRosPath(si->getStateSpace(), path, poses);
 
     std::vector<geometry_msgs::PoseStamped> plan;
     for(auto pose : poses)
@@ -135,7 +123,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     spath.header = plan.back().header;
     spath.poses = plan;
     
-    //path_pub.publish(spath);
+    path_pub.publish(spath);
     
     rrtx->publish(true, true);
 }
