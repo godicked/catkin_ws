@@ -144,18 +144,24 @@ public:
     }
 
     // re-use ReedsSheppsPath for interpolation, more optimal than StateSpace getMotionStates implementation
-    void getMotionStates(const ompl::base::State *s1, const ompl::base::State *s2, std::vector<ompl::base::State *> &states, int nb)
+    void getMotionStates(const ompl::base::State *s1, const ompl::base::State *s2, std::vector<ompl::base::State *> &states, int nb = 0)
     {
+
         double t = 0;
-        bool firstTime = true;
-        ompl::base::ReedsSheppStateSpace::ReedsSheppPath path;
+        bool firstTime = false;
+        ompl::base::ReedsSheppStateSpace::ReedsSheppPath path = reedsShepp(s1, s2);
+
+        if(nb == 0)
+        {
+            nb = path.length() / costmap_->getResolution();
+        }
 
         for(int i = 0; i < nb; i++)
         {
             ompl::base::State *s = allocState();
             states.push_back(s);
             interpolate(s1, s2, t, firstTime, path, states.back());
-            t += 1.0 / nb;
+            t += 1.0 / (nb);
         }
     }
 
@@ -175,7 +181,7 @@ public:
     {
         // std::cout << "checkMotion" << std::endl;
         std::vector<ompl::base::State *> states;
-        si_->getStateSpace()->as<CostmapStateSpace>()->getMotionStates(s1, s2, states, si_->distance(s1, s2) * 5);
+        si_->getStateSpace()->as<CostmapStateSpace>()->getMotionStates(s1, s2, states);
 
         for(auto s : states)
         {
