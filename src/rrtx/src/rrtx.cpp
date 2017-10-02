@@ -534,7 +534,7 @@ namespace rrt
     /*
     **  Define maxDistance between two neighbors
     */
-    void RRTx::setMaxDist(double dist)
+    void RRTx::setRange(double dist)
     {
         maxDist_ = dist;
     }

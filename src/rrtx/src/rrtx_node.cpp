@@ -30,7 +30,7 @@
 #include <ompl/base/ProblemDefinition.h>
 #include <ompl/base/MotionValidator.h>
 
-#define PLANNER rrts
+#define PLANNER rrtx
 
 using namespace ompl::geometric;
 using namespace ompl::base;
@@ -99,7 +99,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     PLANNER->clear();
     pdp->clearSolutionPaths();
     PLANNER->setProblemDefinition(pdp);
-    // PLANNER->setMaxDist(maxDist);
+    PLANNER->setRange(maxDist);
 
     ros::Time t = ros::Time::now();
     auto solved = PLANNER->solve(ptc);
@@ -118,21 +118,6 @@ void goalCallback(geometry_msgs::PoseStamped goal)
         auto states = path->getStates(); 
 
         cout << "solved " << states.size() << endl;
-
-        // rrtx->init(pdp); 
-        // rrtx->grow(growSize);
-
-        // rrt::RRTx::Path path;
-        // if(!rrtx->computePath(path))
-        // {
-        //     ROS_WARN("no path found!");
-        //     return;
-        // }
-        
-        // cout << "computed Path: " << path.size() << endl;
-
-        // rrt::BSplinePathSmoother smoother;
-        // // path = smoother.curvePath(path, 0.05);
 
         vector<geometry_msgs::Pose> poses;
         buildRosPath(si->getStateSpace(), states, poses);

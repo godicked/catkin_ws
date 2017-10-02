@@ -38,7 +38,7 @@ namespace rrt
 
             RRTx(ob::SpaceInformationPtr si);
                                 
-            void setMaxDist(double maxDist);
+            void setRange(double maxDist);
 
             virtual ob::PlannerStatus solve(const ob::PlannerTerminationCondition &ptc) override;
 
