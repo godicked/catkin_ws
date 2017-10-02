@@ -142,11 +142,7 @@ namespace rrt
                 continue;
             data.addEdge(base::PlannerDataVertex(m->state), base::PlannerDataVertex(m->parent->state));
         }
-        for(auto f : failed)
-        {
-            data.addVertex(PlannerDataVertex(f));
-        }
-        cout << "fails " << fail << endl;
+
         cout << "vertices " << nn_->size() << endl;
         cout << "radius " << radius_ << endl;
         cout << "dimension " << si_->getStateDimension() << endl;
@@ -173,14 +169,10 @@ namespace rrt
                 rewireNeighbors(v);
                 reduceIncosistency();
             }
-            else
-            {
-                // si_->freeState(v->state);
-                // delete v;
-                failed.push_back(v->state);
-            }
+
         }
-        else 
+        
+        if(v->parent == nullptr)
         {
             si_->freeState(v->state);
             delete v;
@@ -199,8 +191,6 @@ namespace rrt
         nn_->nearestR(v, radius_ +0.001, nbhs);
         vector<Motion *> validMotions = findMotions(v, nbhs);
 
-        if(nbhs.size() == 0)
-            fail++;
         // search for parent
         findParent(v, validMotions);
         if(v->parent == nullptr)

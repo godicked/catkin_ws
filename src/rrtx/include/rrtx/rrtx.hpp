@@ -146,9 +146,6 @@ namespace rrt
             ob::OptimizationObjectivePtr opt_;
             ob::StateSamplerPtr sampler_;
 
-            int fail = 0;
-            std::vector<ob::State *> failed;
-
     };
 
 };
