@@ -37,12 +37,12 @@ ompl::base::Cost state_cost(const ompl::base::State *state, costmap_2d::Costmap2
     return ompl::base::Cost(costmap->getCost(mx ,my));
 }
 
-double getX(ompl::base::State *s)
+double getX(const ompl::base::State *s)
 {
     return s->as<ompl::base::SE2StateSpace::StateType>()->getX();
 }
 
-double getY(ompl::base::State *s)
+double getY(const ompl::base::State *s)
 {
     return s->as<ompl::base::SE2StateSpace::StateType>()->getY();
 }
@@ -105,13 +105,14 @@ public:
             double d = p.length_[i];
             if(d < 0)
             {
-                dist += -4 * d;  
+                dist += -1 * d;  
             }
             else
             {
                 dist += d;
             }
         }
+        // return ompl::base::Cost(p.length());
         return ompl::base::Cost(dist);
     }
 

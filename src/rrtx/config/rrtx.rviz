@@ -7,6 +7,8 @@ Panels:
         - /Global Options1
         - /RRTx Tree1
         - /RRTx Tree1/Namespaces1
+        - /Marker2
+        - /Marker2/Namespaces1
       Splitter Ratio: 0.5
     Tree Height: 517
   - Class: rviz/Selection
@@ -36,9 +38,7 @@ Visualization Manager:
       Marker Topic: /tree
       Name: RRTx Tree
       Namespaces:
-        path: true
-        pose: true
-        tree: false
+        {}
       Queue Size: 100
       Value: true
     - Alpha: 0.699999988
@@ -75,13 +75,13 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /visited
       Name: Marker
       Namespaces:
         {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Alpha: 0.699999988
       Class: rviz/Map
       Color Scheme: map
@@ -91,6 +91,14 @@ Visualization Manager:
       Topic: /rrtx_node/costmap/costmap
       Unreliable: false
       Use Timestamp: false
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /rrtx_node/tree
+      Name: Marker
+      Namespaces:
+        tree: true
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:

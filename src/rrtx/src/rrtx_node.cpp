@@ -21,6 +21,7 @@
 
 #include "rrtx/rrtx.hpp"
 
+#include <rrtx/rrtx_publisher.hpp>
 
 #include <rrtx/reeds_shepp_config.hpp>
 
@@ -29,6 +30,7 @@
 #include <ompl/base/ProblemDefinition.h>
 #include <ompl/base/MotionValidator.h>
 
+#define PLANNER rrts
 
 using namespace ompl::geometric;
 using namespace ompl::base;
@@ -36,8 +38,11 @@ using namespace costmap_2d;
 using namespace rrt;
 using namespace std;
 
-rrt::RRTx *rrtx;
+std::shared_ptr<RRTstar> rrts;
+std::shared_ptr<RRTx> rrtx;
+
 ros::Publisher path_pub;
+std::shared_ptr<rrt::RRTxPublisher> rrt_pub;
 
 int growSize;
 double maxDist;
@@ -57,6 +62,8 @@ StateSpacePtr ss;
 SpaceInformationPtr si;
 
 geometry_msgs::Pose start;
+
+std::shared_ptr<ros::NodeHandle> n;
 
 
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
@@ -81,51 +88,81 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     ROS_INFO("cost %d", cost->getCost(mx, my));
     //return;
 
-    if(constraint)
-        rrtx->setConstraint(max_steering, wheelbase);
-    
+
     goal_->setX(goal.pose.position.x);
     goal_->setY(goal.pose.position.y);
 
     pdp->clearGoal();
     pdp->setGoalState(goal_);
-    rrtx->init(pdp); 
-    rrtx->grow(growSize);
 
-    rrt::RRTx::Path path;
-    if(!rrtx->computePath(path))
+    const PlannerTerminationCondition ptc([&](){ return PLANNER->numIterations() >= growSize; });
+    PLANNER->clear();
+    pdp->clearSolutionPaths();
+    PLANNER->setProblemDefinition(pdp);
+    // PLANNER->setMaxDist(maxDist);
+
+    ros::Time t = ros::Time::now();
+    auto solved = PLANNER->solve(ptc);
+    ros::Duration d = ros::Time::now() - t;
+
+    ROS_INFO("solve took %.2f seconds", d.toSec());
+
+    // cout << "vertices : " << rrts->numVertices() << endl;
+
+    PlannerData data(si);
+    PLANNER->getPlannerData(data);
+
+    if(solved)
     {
-        ROS_WARN("no path found!");
-        return;
+        auto path = pdp->getSolutionPath()->as<PathGeometric>();
+        auto states = path->getStates(); 
+
+        cout << "solved " << states.size() << endl;
+
+        // rrtx->init(pdp); 
+        // rrtx->grow(growSize);
+
+        // rrt::RRTx::Path path;
+        // if(!rrtx->computePath(path))
+        // {
+        //     ROS_WARN("no path found!");
+        //     return;
+        // }
+        
+        // cout << "computed Path: " << path.size() << endl;
+
+        // rrt::BSplinePathSmoother smoother;
+        // // path = smoother.curvePath(path, 0.05);
+
+        vector<geometry_msgs::Pose> poses;
+        buildRosPath(si->getStateSpace(), states, poses);
+
+        std::vector<geometry_msgs::PoseStamped> plan;
+        for(auto pose : poses)
+        {
+            //cout << pose.position.x << " " << pose.position.y << endl;
+
+            geometry_msgs::PoseStamped poseStmp;
+            poseStmp.header = goal.header;
+            poseStmp.pose   = pose;
+
+            plan.push_back(poseStmp);
+        }
+        
+        nav_msgs::Path spath;
+        spath.header = plan.back().header;
+        spath.poses = plan;
+        
+        path_pub.publish(spath);
+    }
+    else
+    {
+        cout << "not solved" << endl;
     }
     
-    cout << "computed Path: " << path.size() << endl;
-
-    rrt::BSplinePathSmoother smoother;
-    // path = smoother.curvePath(path, 0.05);
-
-    vector<geometry_msgs::Pose> poses;
-    buildRosPath(si->getStateSpace(), path, poses);
-
-    std::vector<geometry_msgs::PoseStamped> plan;
-    for(auto pose : poses)
-    {
-        //cout << pose.position.x << " " << pose.position.y << endl;
-
-        geometry_msgs::PoseStamped poseStmp;
-        poseStmp.header = goal.header;
-        poseStmp.pose   = pose;
-
-        plan.push_back(poseStmp);
-    }
+    rrt_pub->publish(data);
     
-    nav_msgs::Path spath;
-    spath.header = plan.back().header;
-    spath.poses = plan;
-    
-    path_pub.publish(spath);
-    
-    rrtx->publish(true, true);
+    // rrtx->publish(true, true);
 }
 
 int main(int argc, char **argv)
@@ -133,25 +170,24 @@ int main(int argc, char **argv)
     
     ros::init(argc, argv, "rrtx_node");
     
-    ros::NodeHandle n("~/");
-    n.setParam("bool_param", false);
+    n.reset( new ros::NodeHandle("~/") );
+    n->setParam("bool_param", false);
 
-
-    n.param<int>("grow_size", growSize, 1000);
-    n.param<double>("max_dist", maxDist, 2.0);
-    n.param<bool>("constraint", constraint, true);
-    n.param<double>("max_steering", max_steering, 0.55);
-    n.param<double>("wheelbase", wheelbase, 0.26);
+    n->param<int>("grow_size", growSize, 1000);
+    n->param<double>("max_dist", maxDist, 2.0);
+    n->param<bool>("constraint", constraint, true);
+    n->param<double>("max_steering", max_steering, 0.55);
+    n->param<double>("wheelbase", wheelbase, 0.26);
 
     ROS_INFO("init with grow_size: %d, max_dist: %.2f", growSize, maxDist);
 
-    path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
+    path_pub = n->advertise<nav_msgs::Path>("smooth_path", 10);
 
-    ros::Subscriber pose_sub = n.subscribe("/initialpose", 10, poseCallback);
-    ros::Subscriber goal_sub = n.subscribe("/move_base_simple/goal", 10, goalCallback);
+    ros::Subscriber pose_sub = n->subscribe("/initialpose", 10, poseCallback);
+    ros::Subscriber goal_sub = n->subscribe("/move_base_simple/goal", 10, goalCallback);
 
 
-    ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("static_map");
+    ros::ServiceClient client = n->serviceClient<nav_msgs::GetMap>("static_map");
     nav_msgs::GetMap srv;
 
     tf::TransformListener tf(ros::Duration(10));
@@ -199,47 +235,15 @@ int main(int argc, char **argv)
     si->setMotionValidator(mv);
     // si->setStateValidityCheckingResolution(0.9);
     
-    rrtx = new RRTx(si);
-    rrtx->setMaxDist(maxDist);
-
-    // costmap_2d::Costmap2D small(
-    //     200,
-    //     200,
-    //     0.1,
-    //     0,
-    //     0
-    // );
-
-    // for(int x = 0; x < small.getSizeInCellsX(); x++)
-    // {
-    //     for(int y = 0; y < small.getSizeInCellsY(); y++)
-    //     {
-    //         small.setCost(x, y, cost->getCost(x, y));
-    //     }
-
-    // }
-
-    // costmap_converter::CostmapToPolygonsDBSMCCH converter;
-    // converter.initialize(n);
-    // converter.setCostmap2D(&small);
-    // //converter.startWorker(ros::Rate(1), cost);
-    // ros::Time time = ros::Time::now();
-    // converter.compute();
-    // std::cout << ros::Time::now() - time << std::endl;
-
-    ros::spin();
-
-    // ros::Rate rate(1);
-    // while(ros::ok())
-    // {
-        
-    //     //cout << "loop" << endl;
-    //     rrt.publish(false, true);
-
-    //     rate.sleep();
-    // }
-
+    // rrtx = new RRTx(si);
+    // rrtx->setMaxDist(maxDist);
     
+    rrt_pub.reset( new RRTxPublisher() );
+    rrt_pub->initialize(n.get(), "map", si);
+
+    rrts.reset( new RRTstar(si) );
+    rrtx.reset( new RRTx(si) );
+    ros::spin();
 
     return 0;
 }

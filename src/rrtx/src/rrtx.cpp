@@ -1,10 +1,8 @@
 #include <rrtx/rrtx.hpp>
-#include <math.h>
 
-#include <visualization_msgs/Marker.h>
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int_distribution.hpp>
 #include <ompl/base/goals/GoalState.h>
+#include <ompl/geometric/PathGeometric.h>
+#include <ompl/util/GeometricEquations.h>
 
 
 using namespace std;
@@ -12,224 +10,239 @@ using namespace boost;
 using namespace ompl;
 using namespace ompl::base;
 
-const double infinity = numeric_limits<double>::infinity();
-
-boost::random::mt19937 gen;
-
-
 
 namespace rrt
 {
 
-    void print(Node *v)
+    RRTx::RRTx(SpaceInformationPtr si) : Planner(si, "RRTx")
     {
-        double x, y;
-        x = v->state->as<SE2StateSpace::StateType>()->getX();
-        y = v->state->as<SE2StateSpace::StateType>()->getY();
-
-        cout << x << " : " << y << endl;
-    }
-    
-    RRTx::RRTx()    // double dist(geometry_msgs::Pose a, Node b)
-    // {
-    //     double dx = a.position.x - b.x;
-    //     double dy = a.position.y - b.y;
-
-    //     return sqrt(dx*dx + dy*dy);
-    // }
-    {
-        marker_pub  = nh_.advertise<visualization_msgs::Marker>("rrt_tree", 1000);
-        nh_.param<string>("map_frame", this->map_frame, "/map");
-    }
-
-    // RRTx::RRTx(costmap_2d::Costmap2D *costmap) : RRTx()
-    // {
-    //     setCostmap(costmap);
-    // }
-
-    RRTx::RRTx(SpaceInformationPtr si) : RRTx()
-    {
-        si_ = si;
-        publisher.initialize(&nh_, map_frame, si_);
-        nn_.reset( new ompl::NearestNeighborsGNAT<Node *>() );
-        nn_->setDistanceFunction([this](const Node *v, const Node *u) {
+        nn_.reset( new ompl::NearestNeighborsGNAT<Motion *>() );
+        nn_->setDistanceFunction([this](const Motion *v, const Motion *u) {
             return si_->distance(v->state, u->state);
         });
-
         sampler_ = si_->allocStateSampler();
     }
 
-    // void RRTx::setCostmap(costmap_2d::Costmap2D *costmap)
-    // {
-    //     costmap_ = costmap;
-    // }
+    void RRTx::setup()
+    {
+        Planner::setup();
+        // free memory before allocating new space
+        clear();
 
-    void RRTx::setConstraint(double steering_angle, double wheelbase)
-    {
-        // builder = KinematicPathBuilder(nh_, wheelbase, steering_angle);
-        // minDist = wheelbase;
-        // constraint = true;
-    }
-    
-    void RRTx::addVertex(Node *v)
-    {
-        nn_->add(v);
-    }
-
-    vector<Node *> RRTx::inN(Node v)
-    {
-        vector<Node *> in = v.inNz;
-        in.insert(in.end(), v.inNr.begin(), v.inNr.end());
-        return in;
-    }
-
-    vector<Node *> RRTx::outN(Node v)
-    {
-        vector<Node *> out = v.outNz;
-        out.insert(out.end(), v.outNr.begin(), v.outNr.end());
-        return out;
-    }
-
-    void RRTx::removeN(vector<rrt::Node *> *vec, rrt::Node *u)
-    {
-        auto it = vec->begin();
-        while (it != vec->end())
+        if(!pdef_)
         {
-            if (*it == u)
-            {
-                vec->erase(it);
-                return;
-            }
-
-            it++;
+            cout << "No pdef" << endl;
         }
+        opt_ = pdef_->getOptimizationObjective();
+
+        vbot_ = new Motion();
+        vbot_->state = pdef_->getStartState(0);
+        vbot_->g = opt_->infiniteCost();
+        vbot_->lmc = opt_->infiniteCost();
+
+        goal_ = new Motion();
+        goal_->state = pdef_->getGoal()->as<GoalState>()->getState();
+        goal_->g     = opt_->identityCost(); // 0.0
+        goal_->lmc   = opt_->identityCost(); // 0.0
+
+        nn_->add(goal_);
+
+        // As defined in RRT* Y >= 2(1 + 1/dim)^(1/dim) * u(XFree)
+        // u = volume, XFree = free space. y > Y since we use total volume of map
+
+        const double dim = si_->getStateDimension();
+        const double free = si_->getSpaceMeasure();
+
+        y_ = std::pow(2*(1 + 1 / dim), 1 / dim) * std::pow(free / unitNBallMeasure(dim), 1 / dim);
     }
 
-    Node *RRTx::nearest(Node v)
+    PlannerStatus RRTx::solve(const PlannerTerminationCondition &ptc)
     {
-        return nn_->nearest(&v);
-    }
+        // setup
+        checkValidity();
 
-    vector<Node *> RRTx::near(Node v)
-    {
-        vector<Node *> nodes;
-        // cout << "radius is " << radius << endl;
-        nn_->nearestR(&v, radius+0.001, nodes);
-        return nodes;
-    }
-
-    double RRTx::distance(Node v, Node u)
-    {
-        double dist = si_->distance(v.state, u.state);
-        // cout << "dist " << dist << endl;
-        return dist;
-    }
-
-    Node RRTx::saturate(Node v, Node u)
-    {
-        double dist = distance(v, u);
-        if(dist > maxDist)
+        while(!ptc)
         {
-            si_->getStateSpace()->interpolate(u.state, v.state, maxDist / dist, v.state);
+            iteration_++;
+            grow();
         }
-        return v;
-    }
 
-    void RRTx::findParent(Node *v, vector<Node *> nodes)
-    {
-        for(auto u : nodes)
+        bool solved = !opt_->isCostEquivalentTo(vbot_->lmc, opt_->infiniteCost());
+
+        if(solved)
         {
-            double c = cost(v, u);
+            vector<Motion *> mpath;
+            // follow parent Motion
+            for(Motion *v = vbot_; v != nullptr; v = v->parent)
+                mpath.push_back(v);
+
+            // fill path information
+            std::shared_ptr<geometric::PathGeometric> path( new geometric::PathGeometric(si_) );
+            for(auto v : mpath)
+                path->append(v->state);
             
-            if(v->lmc > c + u->lmc)
-            {
-                v->parent    = u;
-                v->lmc       = c + u->lmc;
-            }
-        }
-        
-    }
+            PlannerSolution solution(path);
+            solution.setPlannerName(getName());
 
-    double RRTx::cost(Node *a, Node *b)
-    {
-        return trajectories[make_pair(a,b)].cost;
-    }
+            pdef_->addSolutionPath(solution);
 
-    void RRTx::setCost(Node *a, Node *b, double cost)
-    {
-        trajectories[make_pair(a,b)].cost = cost;
-    }
-
-    Trajectory *RRTx::trajectory(Node *a, Node *b)
-    {
-        return &trajectories[make_pair(a, b)];
-    }
-
-    vector<Node *> RRTx::findTrajectories(Node *v, vector<Node *> nodes)
-    {
-        // cout << "find in: " << nodes.size() << endl;
-        vector<Node *> exist;
-
-        // add start Node if v is near. vbot_ is not stored in the NearestNeigbhors datastructure
-        if(distance(*v, *vbot_) <= radius)
-        {
-            nodes.push_back(vbot_);
         }
 
-        for(auto u : nodes)
+        return PlannerStatus(solved, false);
+    }
+
+    void RRTx::clear()
+    {
+        setup_ = false;
+        Planner::clear();
+
+        if(nn_->size() > 0)
         {
-            if(trajectoryExist(v, u))
+            vector<Motion *> motions;
+            nn_->list(motions);
+            for(auto &m : motions)
             {
-                // cout << "exist" << endl;
-                makeTrajectory(v, u);
-                makeTrajectory(u, v);
-                exist.push_back(u);
+                if(m->state && m != goal_)
+                    si_->freeState(m->state);
+                delete m;
             }
         }
 
-        return exist;
+        if(vbot_)
+        {
+            delete vbot_;
+            vbot_ = nullptr;
+        }
+
+        iteration_ = 0;
+        nn_->clear();
+        q_.clear();
+        motionHash_.clear();
+        orphanHash.clear();
+
+        if(pdef_)
+        {
+            pdef_->clearSolutionPaths();
+        }
     }
 
-    bool RRTx::trajectoryExist(Node *v, Node *u)
+    void RRTx::getPlannerData(PlannerData &data) const
     {
-        return si_->checkMotion(v->state, u->state);
+        Planner::getPlannerData(data);
+
+        data.addGoalVertex(PlannerDataVertex(goal_->state));
+        data.addStartVertex(PlannerDataVertex(vbot_->state));
+
+        vector<Motion *> motions;
+        nn_->list(motions);
+
+        for(auto m : motions)
+        {
+            if(m->parent == nullptr)
+                continue;
+            data.addEdge(base::PlannerDataVertex(m->state), base::PlannerDataVertex(m->parent->state));
+        }
+        for(auto f : failed)
+        {
+            data.addVertex(PlannerDataVertex(f));
+        }
+        cout << "fails " << fail << endl;
+        cout << "vertices " << nn_->size() << endl;
+        cout << "radius " << radius_ << endl;
+        cout << "dimension " << si_->getStateDimension() << endl;
     }
 
-    Trajectory *RRTx::makeTrajectory(Node *v, Node *u)
+    /*
+    **  Algorithm: 1 grow() (part of algorithm 1)
+    **  Add one Motion to the RRTx tree
+    */
+    void RRTx::grow()
     {
-        double cost = opt_->motionCost(v->state, u->state).value();
-        trajectories[make_pair(v,u)] = Trajectory(u, v, cost);
-        return &trajectories[make_pair(v, u)];
+        //cout << "grow" << endl;
+        updateRadius();
+
+        Motion *v = sampleMotion();
+        Motion *vnearest = nn_->nearest(v);
+        saturate(v, vnearest);
+
+        if(si_->isValid(v->state))
+        {
+            extend(v);
+            if(v->parent != nullptr)
+            {
+                rewireNeighbors(v);
+                reduceIncosistency();
+            }
+            else
+            {
+                // si_->freeState(v->state);
+                // delete v;
+                failed.push_back(v->state);
+            }
+        }
+        else 
+        {
+            si_->freeState(v->state);
+            delete v;
+        }
     }
 
-    // bool RRTx::isOutOfBound(unsigned int mx, unsigned int my)
-    // {
-    //     return  mx < 0 || my < 0 ||
-    //             mx >= costmap_->getSizeInCellsX() ||
-    //             my >= costmap_->getvector<RTreePoint> result;
-    //     point p(v.x, v.y);
-    // }
 
-    bool RRTx::isObstacle(Node v)
-    {
-        return !si_->isValid(v.state);
-    }
 
-    /*  Algorithm 3: cullNeighbors(v, r)
-     *  radius is a member variable
+    /*  Algorithm 2: extend(Motion, radius_)
+     *  
+     *  Set parent and neighbors in radius to Motion
      */
+    void RRTx::extend(Motion *v)
+    {
+        vector<Motion *> nbhs;
+        nn_->nearestR(v, radius_ +0.001, nbhs);
+        vector<Motion *> validMotions = findMotions(v, nbhs);
 
-    void RRTx::cullNeighbors(Node *v)
+        if(nbhs.size() == 0)
+            fail++;
+        // search for parent
+        findParent(v, validMotions);
+        if(v->parent == nullptr)
+            return;
+
+        // add vertex to the NearestNeighbor structure
+        nn_->add(v);
+
+        // set v 
+        v->parent->children.push_back(v);
+
+        //cout << "for nver : vnear" << endl;
+        for(auto u : validMotions)
+        {
+
+            v->outN0.push_back(u);
+            u->inNr.push_back(v);
+
+            // Inverse trajectory u to v.
+
+            u->outNr.push_back(v);
+            v->inN0.push_back(u);
+        }
+    }
+
+
+
+    /*  
+    **  Algorithm 3: cullNeighbors(v, r)
+    **  reduce running neighbors.
+    */
+    void RRTx::cullNeighbors(Motion *v)
     {
         auto it = v->outNr.begin();
 
         while(it != v->outNr.end())
         {
-            Node *u = *it;
-            if(v->parent != u && radius < distance(*v, *u))
+            Motion *u = *it;
+            if(v->parent != u && radius_ < distance(v, u))
             {
                 it = v->outNr.erase(it);
-                removeN(&u->inNr, v);
+                removeNbhs(u->inNr, v);
             }
             else
             {
@@ -238,94 +251,62 @@ namespace rrt
         }
     }
 
-    /*  Algorithm 2: extend(v, r)
-     *  radius is a member variable
-     *
-     */
-    void RRTx::extend(Node *v)
+
+
+    /*
+    **  Algorithm 4: rewireNeighbors(Motion)
+    **  Check if neighbors have better path through Motion
+    */
+    void RRTx::rewireNeighbors(Motion *v)
     {
-
-        //Get Information about Nodes near v in the given radius
-        //Each NearInfo tuple contains the target node u, the distance d(v, u),
-        //and a bool saving the collision test made by trajectoryExist()
-        //(called in findParent)
-
-        //cout << "near" << endl;
-        //cout << "full size " << nn_->size() << endl;
-
-        vector<Node *> nearNodes = near(*v);
-        vector<Node *> validNodes = findTrajectories(v, nearNodes);
-
-        // cout << "found " << validNodes.size() << endl;
-        //cout << "findParent" << endl;
-        findParent(v, validNodes);
-        if(v->parent == nullptr)
-            return;
-
-        //cout << "addVertex" << endl;
-        addVertex(v);
-        v->parent->childs.push_back(v);
-
-        //cout << "for nver : vnear" << endl;
-        for(auto u : validNodes)
-        {
-
-            v->outNz.push_back(u);
-            u->inNr.push_back(v);
-
-            // Inverse trajectory u to v.
-
-            u->outNr.push_back(v);
-            v->inNz.push_back(u);
-        }
-    }
-
-    void RRTx::verrifyQueue(Node *v)
-    {
-        //cout << "verify queue" << endl;
-        if(queueContains(v))
-            queueUpdate(v);
-        else
-            queueInsert(v);
-    }
-
-    void RRTx::rewireNeighbors(Node *v)
-    {
-        if( v->g - v->lmc > epsilon)
+        //  epsilon optimal
+        auto newCost = opt_->combineCosts(epsilon, v->lmc);
+        if(opt_->isCostBetterThan(newCost, v->g))
         {
             cullNeighbors(v);
-            for(Node *u : inN(*v))
+            auto inNbhs = v->inNbhs();
+
+            for(Motion *u : inNbhs)
             {
                 if(u == v->parent)
                     continue;
-
-                double dist = cost(u, v) + v->lmc;
-                if(u->lmc > dist)
+                
+                //  Find every neighbors with optimal path through v
+                auto cost = opt_->combineCosts(getCost(u, v), v->lmc);
+                if(opt_->isCostBetterThan(cost, u->lmc))
                 {
-                    u->lmc      = dist;
+                    u->lmc      = cost;
                     makeParentOf(v, u);
 
-                    if(u->g - u->lmc > epsilon)
+                    //  Check epsilon optimality for u
+                    newCost = opt_->combineCosts(epsilon, u->lmc);
+                    if(opt_->isCostBetterThan(newCost, u->g))
                         verrifyQueue(u);
                 }
             }
         }
     }
-        
 
-    void RRTx::reduceInconsist()
+
+
+    /*
+    **  Algorithm: 5 reduceIncosistency()
+    **  update lmc and rewire neighbors from Motions in the priority queue
+    */
+    void RRTx::reduceIncosistency()
     {
-        while(  !queue.empty() &&
-                (queue.top()->key < vbot_->key ||
-                abs(vbot_->lmc - vbot_->g) > 0.00001 ||
-                vbot_->g == infinity ||
+        while(  !q_.empty() &&
+                (q_.top()->key < vbot_->key ||
+                !opt_->isCostEquivalentTo(vbot_->lmc, vbot_->g) ||
+                opt_->isCostEquivalentTo(vbot_->g, opt_->infiniteCost()) ||
                 queueContains(vbot_)))
         {
 
-            //Take first Node from queue and remove it
-            Node *v = queuePop();
-
-            if(v->g - v->lmc > epsilon)
+            //Take first Motion from queue and remove it
+            Motion *v = queuePop();
+            
+            auto cost = opt_->combineCosts(v->lmc, epsilon);
+            if(opt_->isCostBetterThan(cost, v->g))
             {
                 updateLMC(v);
                 rewireNeighbors(v);
@@ -335,18 +316,59 @@ namespace rrt
         }
     }
 
-    void RRTx::updateLMC(Node *v)
+
+    /*
+    **  Algorithm 6: findParent(Motion, Neighbors)
+    **  Find Parent for Motion v in list of neighbors
+    */
+    void RRTx::findParent(Motion *v, vector<Motion *> &nbh)
+    {
+        for(auto u : nbh)
+        {
+            Cost cost = opt_->combineCosts(getCost(v, u), u->lmc);
+            // if path through u is better than before, make it parent
+            if(opt_->isCostBetterThan(cost, v->lmc))
+            {
+                v->parent    = u;
+                v->lmc       = cost;
+            }
+        }
+        
+    }
+
+
+
+    /*
+    **  Algorithm 12: verrifyQueue(Motion)
+    **  Insert or Updates Motion in the priority queue
+    */
+    void RRTx::verrifyQueue(Motion *v)
+    {
+        if(queueContains(v))
+            queueUpdate(v);
+        else
+            queueInsert(v);
+    }
+
+    
+
+    /*
+    **  Algorithm: 14 updateLMC(Motion)
+    **  Updates parent of Motion if path through neighbor is better than the lmc
+    */
+    void RRTx::updateLMC(Motion *v)
     {
         cullNeighbors(v);
-        Node *p = v->parent;
+        Motion *p = v->parent;
 
-        for(Node *u : outN(*v))
+        auto nbhs = v->outNbhs();
+        for(Motion *u : nbhs)
         {
             if(u->parent == v)
                 continue;
 
-            double dist = cost(v, u) + u->lmc;
-            if(v->lmc > dist)
+            Cost cost = opt_->combineCosts(getCost(v, u), u->lmc);
+            if(opt_->isCostBetterThan(cost, v->lmc))
             {
                 p = u;
             }
@@ -354,390 +376,356 @@ namespace rrt
         makeParentOf(p, v);
     }
 
-	void RRTx::queueInsert(Node *v)
-	 {
-	    updateKey(v); 
-	    nodeHash[v] = queue.push(v);
-	 }
-	 
-	 bool RRTx::queueContains(Node *v)
-	 {
-	    return nodeHash.find(v) != nodeHash.end();
-	 }
-	 
-	 void RRTx::queueUpdate(Node *v)
-	 {
-	    updateKey(v);
-	    queue.update(nodeHash[v]);
-	 }
-	 
-	 void RRTx::queueRemove(Node *v)
-	 {
-	    queue.erase(nodeHash[v]);
-	    nodeHash.erase(v);
-	 }
-
-     Node *RRTx::queuePop()
-     {
-         Node *toRemove = queue.top();
-         nodeHash.erase(toRemove);
-         queue.pop();
-         return toRemove;
-     }
-
-     void RRTx::updateKey(Node *v)
-     {
-         v->key.k1 = min(v->g, v->lmc);
-         v->key.k2 = v->g;
-     }
-
-     void RRTx::updateRadius()
-     {
-         // at start nn_ size is 1, so we add one to avoid 0 radius
-         int    n       = nn_->size() + 1;
-         double term1   = (y / M_PI) * (log(n) / n);
-         radius  = min( pow(term1, 0.5), maxDist);
-
-         //cout << "new radius: " << radius << endl;
-     }
-
-     /* randomNode
-     ** returns a randomly sampled Node */
-     Node RRTx::randomNode()
-     {
-         Node node;
-         node.state = si_->allocState();
-         sampler_->sampleUniform(node.state);
-
-         return node;
-     }
-
-     Node RRTx::rootNode()
-     {
-         //cout << "root node" << endl;
-         return *goal_;
-     }
-
-     RRTx::NodeContainer RRTx::getContainer()
-     {
-         return nodeContainer;
-     }
 
 
-     void RRTx::grow()
-     {
-         //cout << "grow" << endl;
-         updateRadius();
+    /*
+    **  Distance function between two Motion
+    */
+    double RRTx::distance(Motion *v, Motion *u)
+    {
+        return si_->distance(v->state, u->state);
+    }
 
-         Node new_v     = randomNode();
-        //   cout << endl;
-        //  print(&new_v);
-         Node *vnearest = nearest(new_v);
-         new_v = saturate(new_v, *vnearest);
-         
-        //  print(&new_v);
 
-         if(!isObstacle(new_v))
-         {
-             nodeContainer.push_back(new_v);
-             Node *v = &nodeContainer.back();
-             
-             extend(v);
-             if(v->parent != nullptr)
-             {
-                // cout << "add" << endl;
-                rewireNeighbors(v);
-                reduceInconsist();
-             }
-             else
-             {
-                 nodeContainer.pop_back();
-             }
-         }
-     }
-
-     void RRTx::grow(unsigned int iteration)
-     {
-         ros::Time t = ros::Time::now();
-         while(nodeContainer.size() < iteration)
-             grow();
-         ros::Duration d = ros::Time::now() - t;
-         ROS_INFO("RRTx grow took %.2f seconds ( %ld nodes )", d.toSec(), nodeContainer.size());
-     }
-
-     void RRTx::init(ProblemDefinitionPtr pdef)
-     {
-
-        pdef_ = pdef;
-        opt_ = pdef_->getOptimizationObjective();
-        // ROS_INFO("Init RRTx.  start: %.1f:%.1f, goal: %.1f:%.1f", sx, sy, gx, gy);
-        // ROS_INFO("Costmap size: %.1f:%.1f, costmap resolution %.2f", costmap_->getSizeInMetersX(), 
-        // costmap_->getSizeInMetersY(), costmap_->getResolution());
-
-        nn_->clear();
-        queue.clear();
-        nodeHash.clear();
-        nodeContainer.clear();
-        trajectories.clear();
-        // infTrajectories.clear();
-        orphanHash.clear();
-        
-        //gen = boost::random::mt19937(time(0));
-        
-        Node vbot;
-        vbot.state = pdef_->getStartState(0);
-
-        Node goal;
-        goal.state = pdef_->getGoal()->as<GoalState>()->getState();
-        goal.g     = 0;
-        goal.lmc   = 0;
-
-        if(isObstacle(goal))
-        ROS_WARN("goal is obstacle");
-
-        nodeContainer.push_back(vbot);
-        vbot_ = &nodeContainer.back();
-
-        nodeContainer.push_back(goal);
-        goal_ = &nodeContainer.back();
-        addVertex(goal_);
-
-     }
-
-     // get signed angle in range ]-pi; pi]
-    //  double RRTx::getAngle(Node a, Node b, Node c)
-    //  {
-    //     double x1, y1, x2, y2;
-
-    //     x1 = b.x - a.x;
-    //     y1 = b.y - a.y;
-
-    //     x2 = b.x - c.x;
-    //     y2 = b.y - c.y;
-
-    //     double dot = x1*x2 + y1*y2;
-    //     double cross = x1 * y2 - y1 * x2;
-
-    //     double angle = atan2(cross, dot);
-
-    //     return angle;
-    //  }
-
-     void RRTx::updateTree(double origin_x, double origin_y, double size_x, double size_y)
-     {
-         ros::Time time = ros::Time::now();
-         //ROS_INFO("start update tree");
-         //findFreeTrajectories(map);
-         reduceInconsist();
-
-         addObstacle(origin_x, origin_y, size_x, size_y);
-         //ROS_INFO("end add obstacle");
-         propogateDescendants();
-         //verrifyQueue(vbot_->parent);
-         reduceInconsist();
-         //ROS_INFO("end update");
-
-         ros::Duration d = ros::Time::now() - time;
-         //ROS_INFO("update Tree took %.3fsec", d.toSec());
-
-         if(lastPath.size() > 1)
-         {
-            //  makeParentOf(lastPath[1], vbot_);
-         }
-     }
-
-     void RRTx::verrifyOrphan(Node *v)
-     {
-         if(queueContains(v))
-         {
-             queueRemove(v);
-         }
-
-         orphanHash[v] = true;
-     }
-
-     void RRTx::insertOrphanChildren(Node *v)
-     {
-        orphanHash[v] = true;
-
-        for(auto c : v->childs)
+    /*
+    **  Returns a Motion v' between u and v with distance(u, v') < maxDist_
+    */
+    void RRTx::saturate(Motion *v, Motion *u)
+    {
+        double dist = distance(v, u);
+        if(dist > maxDist_)
         {
-            insertOrphanChildren(c);
+            si_->getStateSpace()->interpolate(u->state, v->state, maxDist_ / dist, v->state);
         }
-     }
-
-     void RRTx::propogateDescendants()
-     {
-         //ROS_INFO("propagateDescendants");
-         // get all orphan nodes
-         vector<Node *> orphans;
-         orphans.reserve(orphanHash.size());
-         for(auto o : orphanHash) 
-         { 
-             orphans.push_back(o.first);
-         }
-         //ROS_INFO("%ld orphans", orphans.size());
-         // insert children to orphans
-         for(auto v : orphans)
-         {
-             insertOrphanChildren(v);
-         }
-         // get new list of orphan nodes
-         orphans.clear();
-         orphans.reserve(orphanHash.size());
-         for(auto v : orphanHash) 
-         { 
-             orphans.push_back(v.first);
-         }
-         
-        //  ROS_INFO("%ld orphans", orphans.size());
-         // verifiy outgoing edges
-         for(auto v : orphans)
-         {
-             vector<Node *> neighbors = outN(*v);
-             neighbors.push_back(v);
-             for(auto n : neighbors)
-             {
-                 if(orphanHash[n]) continue;
-
-                 n->g = infinity;
-                 verrifyQueue(n);
-             }
-
-         }
-
-         for (auto v : orphans)
-         {
-             v->g = infinity;
-             v->lmc = infinity;
-             if (v->parent)
-             {
-                auto &childs = v->parent->childs;
-                childs.erase(remove_if(
-                    childs.begin(), childs.end(), [v](Node *c) { return v == c; }),
-                    childs.end());
-                v->parent = nullptr;
-             }
-         }
-
-         orphanHash.clear();
-        //  ROS_INFO("end propagate");
-     }
-     void RRTx::findFreeTrajectories(costmap_2d::Costmap2D map)
-     {
-
-     }
-
-     void RRTx::addObstacle(double origin_x, double origin_y, double size_x, double size_y)
-     {
-    //     vector<Trajectory *> hit;
-    //     vector<RTreePoint> search;
-    //     box b(point(origin_x, origin_y), point(origin_x + size_x, origin_y + size_y));
-    //     rtree.query(bgi::intersects(b), back_inserter(search));
-
-    // //  ROS_INFO("found %ld nodes", search.size());
-
-    //     for(auto s : search)
-    //     {
-    //     Node *v = s.second;
-
-    //     for(auto n : outN(*v))
-    //     {
-    //         if(cost(v, n) == infinity) continue;
-    //         if(!trajectoryExist(v, n))
-    //         {
-    //             setCost(v, n, infinity);
-    //             hit.push_back(trajectory(v, n));
-    //         }
-    //     }
-    //     }
-
-    // //  ROS_INFO("hit %ld trajectories", hit.size());
-
-    //     for(auto traj : hit)
-    //     {
-    //     infTrajectories.push_back(traj);
-    //     if(traj->source->parent == traj->target)
-    //     {
-    //         //ROS_INFO("is parent!");
-    //         //infTrajectories.push_back(traj);
-    //         verrifyOrphan(traj->source);
-    //     }
-    //     if(traj->target->parent == traj->source)
-    //     {
-    //         //ROS_INFO("is parent!");
-    //         //infTrajectories.push_back(traj);
-    //         verrifyOrphan(traj->target);
-    //     }
-    //     }
     }
 
-  
-    bool RRTx::computePath(Path &path)
+
+    /*
+    **  Remove Motion in vector
+    **  used by cullNeighbors(v, r)
+    */
+    void RRTx::removeNbhs(vector<Motion *> &nbhs, Motion *toRm)
     {
-        path.clear();
-        
-        Node *v = vbot_;
-        while(v != nullptr)
+        for(auto it = nbhs.begin(); it != nbhs.end(); it++)
         {
-            path.push_back(v->state);
-            v = v->parent;
+            if(*it == toRm)
+            {
+                nbhs.erase(it);
+                cout << "removeNbh true" << endl;
+                return;
+            }
         }
-        return path.back() == goal_->state;
-    }
-
-    void RRTx::updateRobot(geometry_msgs::Pose robot)
-    {
-        // Node vbot;
-        // vbot.x = robot.position.x;
-        // vbot.y = robot.position.y;
-
-        // if(lastPath.size() > 3)
-        // {
-        //     if(distance(vbot, *lastPath[1]) > distance(vbot, *lastPath[2]) && cost(lastPath[1], lastPath[2]) != infinity)
-        //     {
-        //         vbot_ = lastPath[1];
-        //         makeParentOf(lastPath[2], vbot_);
-        //         updateKey(vbot_);
-        //     }
-        // }
-    }
-
-    void RRTx::setMaxDist(double dist)
-    {
-        maxDist = dist;
-        // As defined in RRT* Y >= 2 * dim + (1 + 1/dim) * u(XFree)
-        // u = volume, XFree = free space. y > Y since we use total volume of map
-        y = 6.0 * si_->getSpaceMeasure();
-    }
-
-    void RRTx::publish(bool path, bool tree)
-    {
-        
-        publisher.publishTree(vbot_, goal_, nodeContainer, true);
-        // publisher.publishInfTrajectories(infTrajectories);
-        return;
-
     }
 
     /*
-    *   Make set the parent of the node v. Also actualise childs from old and new parent
+    **  Get Cost between two Motion
+    */
+    Cost RRTx::getCost(Motion *a, Motion *b)
+    {
+        return opt_->motionCost(a->state, b->state);
+    }
+
+    /**
+     ** Find motions between v and neighbors that are obstacle free
+     */
+    vector<Motion *> RRTx::findMotions(Motion *v, vector<Motion *> motions)
+    {
+        vector<Motion *> exist;
+        // add start Motion if v is near. vbot_ is not stored in the NearestNeigbhors datastructure
+        if(distance(v, vbot_) <= radius_)
+        {
+            motions.push_back(vbot_);
+        }
+
+        for(auto u : motions)
+        {
+            if(si_->checkMotion(v->state, u->state))
+            {
+                exist.push_back(u);
+            }
+        }
+        return exist;
+    }
+
+    /*
+    **  Insert Motion in queue
+    */
+	void RRTx::queueInsert(Motion *v)
+    {
+        updateKey(v); 
+        motionHash_[v] = q_.push(v);
+    }
+    
+    /*
+    **  Test if Queue contains Motion
+    */
+    bool RRTx::queueContains(Motion *v)
+    {
+        return motionHash_.find(v) != motionHash_.end();
+    }
+    
+    /*
+    **  Update Motion key and position in Queue
+    */
+    void RRTx::queueUpdate(Motion *v)
+    {
+        updateKey(v);
+        q_.update(motionHash_[v]);
+    }
+    
+    /*
+    **  Remove Motion from Queue
+    */
+    void RRTx::queueRemove(Motion *v)
+    {
+        q_.erase(motionHash_[v]);
+        motionHash_.erase(v);
+    }
+
+    /*
+    ** Pop top Queue Motion
+    */
+    Motion *RRTx::queuePop()
+    {
+        Motion *toRemove = q_.top();
+        motionHash_.erase(toRemove);
+        q_.pop();
+        return toRemove;
+    }
+
+    /*
+    **  Set the key values
+    */
+    void RRTx::updateKey(Motion *v)
+    {
+        v->key.k1 = opt_->betterCost(v->g, v->lmc).value();
+        v->key.k2 = v->g.value();
+    }
+
+    /*
+    ** Update Radius based on number of Motions in the Tree
+    */
+    void RRTx::updateRadius()
+    {
+        // at start nn_ size is 1, so we add one to avoid 0 radius_
+        int    n       = nn_->size() + 1;
+        // double term1   = (y_ / M_PI) * (log(n) / n);
+        // radius_  = min( pow(term1, 0.5), maxDist_);
+        radius_ = y_ * std::pow(log(n) / n, 1 / si_->getStateDimension());
+        radius_ = min(radius_, maxDist_);
+        //cout << "new radius_: " << radius_ << endl;
+    }
+
+    /* 
+    **  returns a randomly sampled Motion 
+    */
+    Motion *RRTx::sampleMotion()
+    {
+        Motion *motion = new Motion;
+        motion->state = si_->allocState();
+        motion->lmc = opt_->infiniteCost();
+        motion->g = opt_->infiniteCost();
+        sampler_->sampleUniform(motion->state);
+
+        return motion;
+    }
+
+
+    /*
+    **  Define maxDistance between two neighbors
+    */
+    void RRTx::setMaxDist(double dist)
+    {
+        maxDist_ = dist;
+    }
+
+
+    /*  
+    *   set the parent of motion v and update children from old and new parent
     */ 
-    void RRTx::makeParentOf(Node *parent, Node *v)
+    void RRTx::makeParentOf(Motion *parent, Motion *v)
     {
         if(v->parent)
         {
-            auto& childs = v->parent->childs;
-            childs.erase(remove_if(
-                childs.begin(), childs.end(), [v](Node *c){ return v == c; }),
-                childs.end());
+            auto& children = v->parent->children;
+            children.erase(remove_if(
+                children.begin(), children.end(), [v](Motion *c){ return v == c; }),
+                children.end());
         }
 
         v->parent = parent;
         if(v->parent)
         {
-            parent->childs.push_back(v);
+            parent->children.push_back(v);
         }
     }
+
+
+    // void RRTx::updateTree(double origin_x, double origin_y, double size_x, double size_y)
+    // {
+    //     ros::Time time = ros::Time::now();
+    //     //ROS_INFO("start update tree");
+    //     //findFreeTrajectories(map);
+    //     reduceInconsist();
+
+    //     addObstacle(origin_x, origin_y, size_x, size_y);
+    //     //ROS_INFO("end add obstacle");
+    //     propogateDescendants();
+    //     //verrifyQueue(vbot_->parent);
+    //     reduceInconsist();
+    //     //ROS_INFO("end update");
+
+    //     ros::Duration d = ros::Time::now() - time;
+    //     //ROS_INFO("update Tree took %.3fsec", d.toSec());
+
+    //     if(lastPath.size() > 1)
+    //     {
+    //     //  makeParentOf(lastPath[1], vbot_);
+    //     }
+    // }
+
+    // void RRTx::verrifyOrphan(Motion *v)
+    // {
+    //     if(queueContains(v))
+    //     {
+    //         queueRemove(v);
+    //     }
+
+    //     orphanHash[v] = true;
+    // }
+
+    // void RRTx::insertOrphanChildren(Motion *v)
+    // {
+    // orphanHash[v] = true;
+
+    // for(auto c : v->children)
+    // {
+    //     insertOrphanChildren(c);
+    // }
+    // }
+
+    // void RRTx::propogateDescendants()
+    // {
+    //     //ROS_INFO("propagateDescendants");
+    //     // get all orphan motions
+    //     vector<Motion *> orphans;
+    //     orphans.reserve(orphanHash.size());
+    //     for(auto o : orphanHash) 
+    //     { 
+    //         orphans.push_back(o.first);
+    //     }
+    //     //ROS_INFO("%ld orphans", orphans.size());
+    //     // insert children to orphans
+    //     for(auto v : orphans)
+    //     {
+    //         insertOrphanChildren(v);
+    //     }
+    //     // get new list of orphan motions
+    //     orphans.clear();
+    //     orphans.reserve(orphanHash.size());
+    //     for(auto v : orphanHash) 
+    //     { 
+    //         orphans.push_back(v.first);
+    //     }
+        
+    // //  ROS_INFO("%ld orphans", orphans.size());
+    //     // verifiy outgoing edges
+    //     for(auto v : orphans)
+    //     {
+    //         vector<Motion *> neighbors = outN(*v);
+    //         neighbors.push_back(v);
+    //         for(auto n : neighbors)
+    //         {
+    //             if(orphanHash[n]) continue;
+
+    //             n->g = infinity;
+    //             verrifyQueue(n);
+    //         }
+
+    //     }
+
+    //     for (auto v : orphans)
+    //     {
+    //         v->g = infinity;
+    //         v->lmc = infinity;
+    //         if (v->parent)
+    //         {
+    //         auto &children = v->parent->children;
+    //         children.erase(remove_if(
+    //             children.begin(), children.end(), [v](Motion *c) { return v == c; }),
+    //             children.end());
+    //         v->parent = nullptr;
+    //         }
+    //     }
+
+    //     orphanHash.clear();
+    // //  ROS_INFO("end propagate");
+    // }
+    // void RRTx::findFreeTrajectories(costmap_2d::Costmap2D map)
+    // {
+
+    // }
+
+    //  void RRTx::addObstacle(double origin_x, double origin_y, double size_x, double size_y)
+    //  {
+    // //     vector<Trajectory *> hit;
+    // //     vector<RTreePoint> search;
+    // //     box b(point(origin_x, origin_y), point(origin_x + size_x, origin_y + size_y));
+    // //     rtree.query(bgi::intersects(b), back_inserter(search));
+
+    // // //  ROS_INFO("found %ld motions", search.size());
+
+    // //     for(auto s : search)
+    // //     {
+    // //     Motion *v = s.second;
+
+    // //     for(auto n : outN(*v))
+    // //     {
+    // //         if(getCost(v, n) == infinity) continue;
+    // //         if(!trajectoryExist(v, n))
+    // //         {
+    // //             setCost(v, n, infinity);
+    // //             hit.push_back(trajectory(v, n));
+    // //         }
+    // //     }
+    // //     }
+
+    // // //  ROS_INFO("hit %ld trajectories", hit.size());
+
+    // //     for(auto traj : hit)
+    // //     {
+    // //     infTrajectories.push_back(traj);
+    // //     if(traj->source->parent == traj->target)
+    // //     {
+    // //         //ROS_INFO("is parent!");
+    // //         //infTrajectories.push_back(traj);
+    // //         verrifyOrphan(traj->source);
+    // //     }
+    // //     if(traj->target->parent == traj->source)
+    // //     {
+    // //         //ROS_INFO("is parent!");
+    // //         //infTrajectories.push_back(traj);
+    // //         verrifyOrphan(traj->target);
+    // //     }
+    // //     }
+    // }
+
+    // void RRTx::updateRobot(geometry_msgs::Pose robot)
+    // {
+    //     // Motion vbot;
+    //     // vbot.x = robot.position.x;
+    //     // vbot.y = robot.position.y;
+
+    //     // if(lastPath.size() > 3)
+    //     // {
+    //     //     if(distance(vbot, *lastPath[1]) > distance(vbot, *lastPath[2]) && getCost(lastPath[1], lastPath[2]) != infinity)
+    //     //     {
+    //     //         vbot_ = lastPath[1];
+    //     //         makeParentOf(lastPath[2], vbot_);
+    //     //         updateKey(vbot_);
+    //     //     }
+    //     // }
+    // }
+
 
 }; // namespace rrt

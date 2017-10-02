@@ -7,11 +7,13 @@
 #include <boost/unordered_map.hpp>
 
 #include <ompl/base/State.h>
+#include <ompl/base/Cost.h>
+
+
+namespace ob = ompl::base;
 
 namespace rrt
 {
-
-
 
 struct NodeKey
 {
@@ -29,85 +31,81 @@ struct NodeKey
 };
 
 
-struct Node
+class Motion
 {
-    Node                *parent = nullptr;
-    std::vector<Node *> childs;
+public:
+
+    Motion *parent = nullptr;
+    std::vector<Motion *> children;
 
     NodeKey key;
 
-    double  g       = std::numeric_limits<double>::infinity(); 
-    double  lmc     = std::numeric_limits<double>::infinity();
+    ob::Cost  g; 
+    ob::Cost  lmc;
 
-    ompl::base::State *state;
+    ob::State *state;
 
-    std::vector<Node *> inNz;
-    std::vector<Node *> outNz;
+    std::vector<Motion *> inN0;
+    std::vector<Motion *> outN0;
     
-    std::vector<Node *> inNr;
-    std::vector<Node *> outNr;
+    std::vector<Motion *> inNr;
+    std::vector<Motion *> outNr;
+
+    std::vector<Motion *> inNbhs()
+    {
+        auto in = inN0;
+        in.insert(in.end(), inNr.begin(), inNr.end());
+        return in;
+    }
+
+    std::vector<Motion *> outNbhs()
+    {
+        auto out = outN0;
+        out.insert(out.end(), outNr.begin(), outNr.end());
+        return out;
+    }
 };
 
 struct Trajectory
 {
-    Node *source;
-    Node *target;
+    Motion *source;
+    Motion *target;
 
     double cost;
     Trajectory(){}
-    Trajectory(Node *a, Node *b, double trajCost): source(a), target(b), cost(trajCost){}
+    Trajectory(Motion *a, Motion *b, double trajCost): source(a), target(b), cost(trajCost){}
 };
-typedef std::pair<Node *, Node *> NodePair;
-struct hash_node_pair
+
+typedef std::pair<Motion *, Motion *> MotionPair;
+struct hash_motion_pair
 {
-    std::size_t operator()(const NodePair &p) const
+    std::size_t operator()(const MotionPair &p) const
     {
         std::size_t seed = 0;
-        seed += boost::hash<Node *>()(p.first);
-        seed ^= boost::hash<Node *>()(p.second);
+        seed += boost::hash<Motion *>()(p.first);
+        seed ^= boost::hash<Motion *>()(p.second);
         return seed;
     }
 };
 
-struct node_pair_equal
+struct motion_pair_equal
 {
-    bool operator()(const NodePair &p1, const NodePair &p2) const
+    bool operator()(const MotionPair &p1, const MotionPair &p2) const
     {
         return  p1.first == p2.first && p1.second == p2.second;
     }
 };
 
-struct node_compare
+struct motion_compare
 {
-    bool operator()(const Node *v1, const Node *v2) const
+    bool operator()(const Motion *v1, const Motion *v2) const
     {
         return v1->key > v2->key;
     }
 };
 
-typedef boost::unordered_map<NodePair, Trajectory, hash_node_pair, node_pair_equal> TrajectoryHash;
+typedef boost::unordered_map<MotionPair, Trajectory, hash_motion_pair, motion_pair_equal> TrajectoryHash;
 
-
-// double angle(Node a, Node b, Node c)
-// {
-//     double x1, y1, x2, y2;
-
-//     x1 = b.x - a.x;
-//     y1 = b.y - a.y;
-
-//     x2 = b.x - c.x;
-//     y2 = b.y - c.y;
-
-//     double dot = x1*x2 + y1*y2;
-//     double cross = x1 * y2 - y1 * x2;
-
-//     double angle = atan2(cross, dot);
-
-//     return angle;
-// }
-
-
-
-}; // namespace rrt
+}; // namespace
 
 #endif
