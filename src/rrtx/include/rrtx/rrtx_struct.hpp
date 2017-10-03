@@ -104,8 +104,6 @@ struct motion_compare
     }
 };
 
-typedef boost::unordered_map<MotionPair, Trajectory, hash_motion_pair, motion_pair_equal> TrajectoryHash;
-
 }; // namespace
 
 #endif

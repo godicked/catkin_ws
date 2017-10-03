@@ -49,11 +49,13 @@ namespace rrt
 
         // As defined in RRT* Y >= 2(1 + 1/dim)^(1/dim) * u(XFree)
         // u = volume, XFree = free space. y > Y since we use total volume of map
-
         const double dim = si_->getStateDimension();
         const double free = si_->getSpaceMeasure();
 
         y_ = std::pow(2*(1 + 1 / dim), 1 / dim) * std::pow(free / unitNBallMeasure(dim), 1 / dim);
+
+        symmetric_ = si_->getStateSpace()->hasSymmetricDistance();
+        if(symmetric_) cout << "SYMMETRIC" << endl;
     }
 
     PlannerStatus RRTx::solve(const PlannerTerminationCondition &ptc)
@@ -167,7 +169,7 @@ namespace rrt
             if(v->parent != nullptr)
             {
                 rewireNeighbors(v);
-                reduceIncosistency();
+                reduceInconsistency();
             }
 
         }
@@ -205,14 +207,20 @@ namespace rrt
         //cout << "for nver : vnear" << endl;
         for(auto u : validMotions)
         {
-
+            // Trajectory v -> u
             v->outN0.push_back(u);
             u->inNr.push_back(v);
 
-            // Inverse trajectory u to v.
-
-            u->outNr.push_back(v);
-            v->inN0.push_back(u);
+            // Inverse trajectory u -> v.
+            if  (symmetric_ ||
+                (si_->distance(u->state, v->state) <= maxDist_ &&
+                si_->checkMotion(u->state, v->state)))
+            {
+                costs_[std::make_pair(u, v)] = opt_->motionCost(u->state, v->state);
+                u->outNr.push_back(v);
+                v->inN0.push_back(u);
+            }
+            
         }
     }
 
@@ -280,10 +288,10 @@ namespace rrt
 
 
     /*
-    **  Algorithm: 5 reduceIncosistency()
+    **  Algorithm: 5 reduceInconsistency()
     **  update lmc and rewire neighbors from Motions in the priority queue
     */
-    void RRTx::reduceIncosistency()
+    void RRTx::reduceInconsistency()
     {
         while(  !q_.empty() &&
                 (q_.top()->key < vbot_->key ||
@@ -412,7 +420,7 @@ namespace rrt
     */
     Cost RRTx::getCost(Motion *a, Motion *b)
     {
-        return opt_->motionCost(a->state, b->state);
+        return costs_[std::make_pair(a, b)];
     }
 
     /**
@@ -431,6 +439,7 @@ namespace rrt
         {
             if(si_->checkMotion(v->state, u->state))
             {
+                costs_[std::make_pair(v, u)] = opt_->motionCost(v->state, u->state);
                 exist.push_back(u);
             }
         }
@@ -550,155 +559,170 @@ namespace rrt
         }
     }
 
+    /**
+     * Update Tree edges, and solution path
+     */
+    void RRTx::updateTree(ob::State *center, double radius)
+    {
+        // ros::Time time = ros::Time::now();
 
-    // void RRTx::updateTree(double origin_x, double origin_y, double size_x, double size_y)
-    // {
-    //     ros::Time time = ros::Time::now();
-    //     //ROS_INFO("start update tree");
-    //     //findFreeTrajectories(map);
-    //     reduceInconsist();
+        vector<Motion *> motions;
+        Motion *m = new Motion();
+        m->state = center;
+        nn_->nearestR(m, radius + maxDist_, motions);
 
-    //     addObstacle(origin_x, origin_y, size_x, size_y);
-    //     //ROS_INFO("end add obstacle");
-    //     propogateDescendants();
-    //     //verrifyQueue(vbot_->parent);
-    //     reduceInconsist();
-    //     //ROS_INFO("end update");
+        //ROS_INFO("start update tree");
+        findFreeMotions(motions);
+        reduceInconsistency();
 
-    //     ros::Duration d = ros::Time::now() - time;
-    //     //ROS_INFO("update Tree took %.3fsec", d.toSec());
+        findNewObstacles(motions);
+        //ROS_INFO("end add obstacle");
+        propogateDescendants();
+        //verrifyQueue(vbot_->parent);
+        reduceInconsistency();
+        //ROS_INFO("end update");
 
-    //     if(lastPath.size() > 1)
-    //     {
-    //     //  makeParentOf(lastPath[1], vbot_);
-    //     }
-    // }
+        // ros::Duration d = ros::Time::now() - time;
+        //ROS_INFO("update Tree took %.3fsec", d.toSec());
+        delete m;
+    }
 
-    // void RRTx::verrifyOrphan(Motion *v)
-    // {
-    //     if(queueContains(v))
-    //     {
-    //         queueRemove(v);
-    //     }
+    void RRTx::verrifyOrphan(Motion *v)
+    {
+        if(queueContains(v))
+        {
+            queueRemove(v);
+        }
 
-    //     orphanHash[v] = true;
-    // }
+        orphanHash[v] = true;
+    }
 
-    // void RRTx::insertOrphanChildren(Motion *v)
-    // {
-    // orphanHash[v] = true;
+    void RRTx::insertOrphanChildren(Motion *v)
+    {
+        orphanHash[v] = true;
 
-    // for(auto c : v->children)
-    // {
-    //     insertOrphanChildren(c);
-    // }
-    // }
+        for(auto c : v->children)
+        {
+            insertOrphanChildren(c);
+        }
+    }
 
-    // void RRTx::propogateDescendants()
-    // {
-    //     //ROS_INFO("propagateDescendants");
-    //     // get all orphan motions
-    //     vector<Motion *> orphans;
-    //     orphans.reserve(orphanHash.size());
-    //     for(auto o : orphanHash) 
-    //     { 
-    //         orphans.push_back(o.first);
-    //     }
-    //     //ROS_INFO("%ld orphans", orphans.size());
-    //     // insert children to orphans
-    //     for(auto v : orphans)
-    //     {
-    //         insertOrphanChildren(v);
-    //     }
-    //     // get new list of orphan motions
-    //     orphans.clear();
-    //     orphans.reserve(orphanHash.size());
-    //     for(auto v : orphanHash) 
-    //     { 
-    //         orphans.push_back(v.first);
-    //     }
+    /**
+     * Alogorithm 8: PropogateDescendants(
+     * */
+    void RRTx::propogateDescendants()
+    {
+        //ROS_INFO("propagateDescendants");
+        // get all orphan motions
+        vector<Motion *> orphans;
+        orphans.reserve(orphanHash.size());
+        for(auto o : orphanHash) 
+        { 
+            orphans.push_back(o.first);
+        }
+        //ROS_INFO("%ld orphans", orphans.size());
+        // insert children to orphans
+        for(auto v : orphans)
+        {
+            insertOrphanChildren(v);
+        }
+        // get new list of orphan motions
+        orphans.clear();
+        orphans.reserve(orphanHash.size());
+        for(auto v : orphanHash) 
+        { 
+            orphans.push_back(v.first);
+        }
         
-    // //  ROS_INFO("%ld orphans", orphans.size());
-    //     // verifiy outgoing edges
-    //     for(auto v : orphans)
-    //     {
-    //         vector<Motion *> neighbors = outN(*v);
-    //         neighbors.push_back(v);
-    //         for(auto n : neighbors)
-    //         {
-    //             if(orphanHash[n]) continue;
+    //  ROS_INFO("%ld orphans", orphans.size());
+        // verifiy outgoing edges
+        for(auto v : orphans)
+        {
+            vector<Motion *> nbhs = v->outNbhs();
+            nbhs.push_back(v);
+            for(auto n : nbhs)
+            {
+                if(orphanHash[n]) continue;
 
-    //             n->g = infinity;
-    //             verrifyQueue(n);
-    //         }
+                n->g = opt_->infiniteCost();
+                verrifyQueue(n);
+            }
 
-    //     }
+        }
 
-    //     for (auto v : orphans)
-    //     {
-    //         v->g = infinity;
-    //         v->lmc = infinity;
-    //         if (v->parent)
-    //         {
-    //         auto &children = v->parent->children;
-    //         children.erase(remove_if(
-    //             children.begin(), children.end(), [v](Motion *c) { return v == c; }),
-    //             children.end());
-    //         v->parent = nullptr;
-    //         }
-    //     }
+        for (auto v : orphans)
+        {
+            v->g = opt_->infiniteCost();
+            v->lmc = opt_->infiniteCost();
+            if (v->parent)
+            {
+                auto &children = v->parent->children;
+                children.erase(remove_if(
+                    children.begin(), children.end(), [v](Motion *c) { return v == c; }),
+                    children.end());
+                v->parent = nullptr;
+            }
+        }
 
-    //     orphanHash.clear();
-    // //  ROS_INFO("end propagate");
-    // }
-    // void RRTx::findFreeTrajectories(costmap_2d::Costmap2D map)
-    // {
+        orphanHash.clear();
+    //  ROS_INFO("end propagate");
+    }
 
-    // }
+    /**
+     * Algorithm 11: FindNewObstacles
+     * Search for Edges with obstacles and set the cost to inf
+     */
+    void RRTx::findNewObstacles(vector<Motion *> &motions)
+    {   
+        for(auto v : motions)
+        {
+            auto nbhs = v->outNbhs();
+            for(auto u : nbhs)
+            {
+                if(opt_->isCostEquivalentTo(getCost(v, u), opt_->infiniteCost())) 
+                    continue;
 
-    //  void RRTx::addObstacle(double origin_x, double origin_y, double size_x, double size_y)
-    //  {
-    // //     vector<Trajectory *> hit;
-    // //     vector<RTreePoint> search;
-    // //     box b(point(origin_x, origin_y), point(origin_x + size_x, origin_y + size_y));
-    // //     rtree.query(bgi::intersects(b), back_inserter(search));
+                if(!si_->checkMotion(v->state, u->state))
+                {
+                    costs_[make_pair(v, u)] = opt_->infiniteCost();
 
-    // // //  ROS_INFO("found %ld motions", search.size());
+                    if(v->parent == u)
+                    {
+                        verrifyOrphan(v);
+                    }
+                }
+            }
+        }
+    }
 
-    // //     for(auto s : search)
-    // //     {
-    // //     Motion *v = s.second;
+    /**
+     * FindFreeMotions(motions)
+     * Finds motion that are free and updates their cost
+     * */
+    void RRTx::findFreeMotions(std::vector<Motion *> &motions)
+    {
+        for(auto v : motions)
+        {
+            bool changed = false;
+            auto nbhs = v->outNbhs();
+            for(auto u : nbhs)
+            {
+                if(!opt_->isCostEquivalentTo(getCost(v, u), opt_->infiniteCost())) 
+                    continue;
 
-    // //     for(auto n : outN(*v))
-    // //     {
-    // //         if(getCost(v, n) == infinity) continue;
-    // //         if(!trajectoryExist(v, n))
-    // //         {
-    // //             setCost(v, n, infinity);
-    // //             hit.push_back(trajectory(v, n));
-    // //         }
-    // //     }
-    // //     }
-
-    // // //  ROS_INFO("hit %ld trajectories", hit.size());
-
-    // //     for(auto traj : hit)
-    // //     {
-    // //     infTrajectories.push_back(traj);
-    // //     if(traj->source->parent == traj->target)
-    // //     {
-    // //         //ROS_INFO("is parent!");
-    // //         //infTrajectories.push_back(traj);
-    // //         verrifyOrphan(traj->source);
-    // //     }
-    // //     if(traj->target->parent == traj->source)
-    // //     {
-    // //         //ROS_INFO("is parent!");
-    // //         //infTrajectories.push_back(traj);
-    // //         verrifyOrphan(traj->target);
-    // //     }
-    // //     }
-    // }
+                if(si_->checkMotion(v->state, u->state))
+                {
+                    changed = true;
+                    costs_[make_pair(v, u)] = opt_->motionCost(v->state, u->state);
+                }
+            }
+            if(changed)
+                updateLMC(v);
+            
+            if(!opt_->isCostEquivalentTo(v->lmc, v->g))
+                verrifyQueue(v);
+        }
+    }
 
     // void RRTx::updateRobot(geometry_msgs::Pose robot)
     // {

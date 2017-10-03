@@ -105,7 +105,7 @@ public:
             double d = p.length_[i];
             if(d < 0)
             {
-                dist += -1 * d;  
+                dist += -2 * d;  
             }
             else
             {

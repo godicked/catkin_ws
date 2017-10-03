@@ -19,7 +19,6 @@
 
 namespace ob = ompl::base;
 
-
 using namespace boost;
 
 namespace rrt
@@ -33,6 +32,7 @@ namespace rrt
         typedef Queue::handle_type handle_t;
         typedef boost::unordered_map<Motion *, handle_t> MotionHash;
         typedef boost::unordered_map<Motion *, bool> OrphanHash;
+        typedef boost::unordered_map<MotionPair, ob::Cost, hash_motion_pair, motion_pair_equal> MotionCosts;
 
     public:
 
@@ -40,6 +40,7 @@ namespace rrt
                                 
             void setRange(double maxDist);
 
+            using Planner::solve;
             virtual ob::PlannerStatus solve(const ob::PlannerTerminationCondition &ptc) override;
 
             virtual void setup() override;
@@ -60,7 +61,7 @@ namespace rrt
 
             void freeMemory();
 
-            // void                updateTree      (double origin_x, double origin_y, double size_x, double size_y);
+            void updateTree(ob::State *center, double radius); //
             
             // void                updateRobot (geometry_msgs::Pose robot);
 
@@ -84,7 +85,7 @@ namespace rrt
 
             void rewireNeighbors(Motion *v); //
 
-            void reduceIncosistency(); //
+            void reduceInconsistency(); //
 
             void updateLMC(Motion *v); //
 
@@ -112,11 +113,16 @@ namespace rrt
             Motion *queuePop(); //
 
             // Dynamic part of RRTx
-            // void addObstacle(double origin_x, double origin_y, double size_x, double size_y);
-            // void findFreeTrajectories(costmap_2d::Costmap2D map);
-            // void propogateDescendants();
-            // void verrifyOrphan(Motion *v);
-            // void insertOrphanChildren(Motion *v);
+
+            void findNewObstacles(std::vector<Motion *> &motions); //
+
+            void findFreeMotions(std::vector<Motion *> &motions); //
+
+            void propogateDescendants(); //
+
+            void verrifyOrphan(Motion *v); //
+
+            void insertOrphanChildren(Motion *v); //
 
             // OMPL NearestNeigbhors interface for KNN and distance search
             std::shared_ptr<ompl::NearestNeighbors<Motion *> > nn_;
@@ -128,10 +134,13 @@ namespace rrt
             //  And a NodeHash table to save the handle of inserted Motions
             //  Allows contains/updade/remove operations
             Queue q_;
+
             MotionHash motionHash_;
+            MotionCosts costs_;
 
             //  max distance between 2 a new point and its nearest neighbor
             double maxDist_ = 4.55;
+            bool symmetric_;
 
 
             ob::Cost epsilon = ob::Cost(0.05);

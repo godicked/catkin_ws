@@ -95,18 +95,18 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     pdp->clearGoal();
     pdp->setGoalState(goal_);
 
-    const PlannerTerminationCondition ptc([&](){ return PLANNER->numIterations() >= growSize; });
+    // const PlannerTerminationCondition ptc([&](){ return PLANNER->numIterations() >= growSize; });
     PLANNER->clear();
     pdp->clearSolutionPaths();
     PLANNER->setProblemDefinition(pdp);
     PLANNER->setRange(maxDist);
 
     ros::Time t = ros::Time::now();
-    auto solved = PLANNER->solve(ptc);
+    auto solved = PLANNER->as<Planner>()->solve(10.0);
     ros::Duration d = ros::Time::now() - t;
 
     ROS_INFO("solve took %.2f seconds", d.toSec());
-
+    ROS_INFO("%d iterations", PLANNER->numIterations());
     // cout << "vertices : " << rrts->numVertices() << endl;
 
     PlannerData data(si);
