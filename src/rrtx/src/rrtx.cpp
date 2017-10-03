@@ -102,7 +102,7 @@ namespace rrt
         {
             vector<Motion *> motions;
             nn_->list(motions);
-            for(auto &m : motions)
+            for(auto m : motions)
             {
                 if(m->state && m != goal_)
                     si_->freeState(m->state);
@@ -570,7 +570,7 @@ namespace rrt
         Motion *m = new Motion();
         m->state = center;
         nn_->nearestR(m, radius + maxDist_, motions);
-
+        cout << "update motions " << motions.size() << endl;
         //ROS_INFO("start update tree");
         findFreeMotions(motions);
         reduceInconsistency();
@@ -585,6 +585,21 @@ namespace rrt
         // ros::Duration d = ros::Time::now() - time;
         //ROS_INFO("update Tree took %.3fsec", d.toSec());
         delete m;
+
+        vector<Motion *> mpath;
+        // follow parent Motion
+        for(Motion *v = vbot_; v != nullptr; v = v->parent)
+            mpath.push_back(v);
+
+        // fill path information
+        std::shared_ptr<geometric::PathGeometric> path( new geometric::PathGeometric(si_) );
+        for(auto v : mpath)
+            path->append(v->state);
+        
+        PlannerSolution solution(path);
+        pdef_->clearSolutionPaths();
+        pdef_->addSolutionPath(solution);
+
     }
 
     void RRTx::verrifyOrphan(Motion *v)
@@ -620,7 +635,7 @@ namespace rrt
         { 
             orphans.push_back(o.first);
         }
-        //ROS_INFO("%ld orphans", orphans.size());
+        cout << "orphans " << orphans.size() <<endl;
         // insert children to orphans
         for(auto v : orphans)
         {

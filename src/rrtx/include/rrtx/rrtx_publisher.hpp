@@ -12,6 +12,7 @@
 // #include <ompl/base/spaces/ReedsSheppStateSpace.h>
 #include <rrtx/reeds_shepp_config.hpp>
 #include <ompl/base/SpaceInformation.h>
+#include <algorithm>
 
 #include <ompl/base/PlannerData.h>
 
@@ -35,7 +36,7 @@ namespace rrt
         {
         }
 
-        void initialize(ros::NodeHandle *ros_node, std::string map_frame, ::SpaceInformationPtr si)
+        void initialize(ros::NodeHandle *ros_node, std::string map_frame, SpaceInformationPtr si)
         {
             nh = ros_node;
             map_frame_ = map_frame;
@@ -74,6 +75,11 @@ namespace rrt
             }
 
             publishTree(states, edges);
+
+            auto start = data.getStartVertex(0);
+            auto goal = data.getGoalVertex(0);
+    
+            publishPoses(start.getState(), goal.getState());
         }
 
         void publishPath(std::vector<State *> &path)
@@ -131,7 +137,7 @@ namespace rrt
             marker_pub.publish(edges);
         }
 
-        void publishPoses(State *start, State *goal)
+        void publishPoses(const State *start, const State *goal)
         {
             visualization_msgs::Marker goal_;
             goal_.header.frame_id       = map_frame_;
@@ -282,9 +288,10 @@ namespace rrt
             // std::cout << "t " << t << std::endl;
 
 
-            for(double i = 0; i < 1; i += t)
+            for(double i = 0; i < 1+t; i += t)
             {
                 // std::cout << "i: " << i << std::endl;
+                i = std::min(i, 1.0);
 
                 geometry_msgs::Pose p;
                 ReedsSheppStateSpace::StateType *state = ss->allocState()->as<ReedsSheppStateSpace::StateType>();
@@ -293,6 +300,9 @@ namespace rrt
                 p.position.x = state->getX();
                 p.position.y = state->getY();
                 poses.push_back(p);
+
+                if(i == 1)
+                    break;
             }
 
             // for(int i = 0; i < 5; i++)

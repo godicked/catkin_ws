@@ -50,7 +50,10 @@ double max_steering;
 double wheelbase;
 bool constraint;
 double turningRadius;
+double solveTime;
 typedef ReedsSheppStateSpace::StateType RState;
+
+costmap_2d::Costmap2DROS *costmap;
 
 ProblemDefinitionPtr pdp;
 RState *goal_;
@@ -79,6 +82,10 @@ void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose)
     start = pose.pose.pose;
     start_->setX(start.position.x);
     start_->setY(start.position.y);
+
+    // unsigned int mx, my;
+    // cost->worldToMap(start.position.x, start.position.y, mx, my);
+    // ROS_INFO("start at %d, %d", mx, my);
 
     cout << "done" << endl;
     pdp->clearStartStates();
@@ -116,12 +123,34 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     PLANNER->setRange(maxDist);
 
     ros::Time t = ros::Time::now();
-    auto solved = PLANNER->as<Planner>()->solve(10.0);
+    auto solved = PLANNER->as<Planner>()->solve(solveTime);
     ros::Duration d = ros::Time::now() - t;
 
     ROS_INFO("solve took %.2f seconds", d.toSec());
     ROS_INFO("%d iterations", PLANNER->numIterations());
     // cout << "vertices : " << rrts->numVertices() << endl;
+
+
+
+    for(int x = 0; x < 80; x++)
+    {
+        for(int y = 0; y < 400; y++)
+        {
+            cost->setCost(500+x, 300+y, 254);
+        }
+    }
+    costmap->updateMap();
+
+    auto center = si->allocState()->as<RState>();
+    double wx, wy;
+    cost->mapToWorld(526, 424, wx, wy);
+    center->setXY(wx, wy);
+
+    t = ros::Time::now();
+    rrtx->updateTree(center, 2.0);
+    d = ros::Time::now() - t;
+
+    ROS_INFO("update took %.2f seconds", d.toSec());
 
     PlannerData data(si);
     PLANNER->getPlannerData(data);
@@ -178,6 +207,7 @@ int main(int argc, char **argv)
     n->param<double>("max_steering", max_steering, 0.55);
     n->param<double>("wheelbase", wheelbase, 0.26);
     n->param<double>("turning_radius", turningRadius, 5.0);
+    n->param<double>("solve_time", solveTime, 3.0);
 
     ROS_INFO("init with grow_size: %d, max_dist: %.2f", growSize, maxDist);
 
@@ -191,7 +221,7 @@ int main(int argc, char **argv)
     nav_msgs::GetMap srv;
 
     tf::TransformListener tf(ros::Duration(10));
-    costmap_2d::Costmap2DROS costmap("costmap", tf);
+    costmap = new costmap_2d::Costmap2DROS("costmap", tf);
 
     // client.waitForExistence();
     // if(client.call(srv)) {
@@ -216,7 +246,7 @@ int main(int argc, char **argv)
     //     ROS_WARN("Could not get map from service");
     // }
 
-    cost = costmap.getCostmap();
+    cost = costmap->getCostmap();
 
     StateSpacePtr ss( new CostmapStateSpace(cost, turningRadius) );
 

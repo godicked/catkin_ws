@@ -218,8 +218,8 @@ include_directories(
 add_library(rrtx_lib src/rrtx.cpp)
 target_link_libraries(rrtx_lib ${catkink_LIBRARIES} ${costmap_2d_LIBRARIES} boost_system)
 
-#add_library(rrtx_planner_lib src/rrtx_planner.cpp)
-#target_link_libraries(rrtx_planner_lib rrtx_lib ${costmap_converter_LIBRARIES} ${OMPL_LIBRARIES} rrtx_lib)
+add_library(rrtx_planner_lib src/rrtx_planner.cpp)
+target_link_libraries(rrtx_planner_lib rrtx_lib ${costmap_converter_LIBRARIES} ${OMPL_LIBRARIES} rrtx_lib)
 
 add_executable(rrtx_node src/rrtx_node.cpp)
 target_link_libraries(rrtx_node rrtx_lib ${costmap_converter_LIBRARIES} ${OMPL_LIBRARIES})

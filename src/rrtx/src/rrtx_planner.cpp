@@ -9,8 +9,9 @@
 #include <geometry_msgs/Point.h>   
 #include <geometry_msgs/Point32.h>          
 
-#include <rrtx/reeds_shepp_config.hpp>
+// #include <rrtx/reeds_shepp_config.hpp>
 #include <ompl/base/MotionValidator.h>
+#include <ompl/geometric/PathGeometric.h>
 
 //register this planner as a BaseGlobalPlanner plugin
 PLUGINLIB_EXPORT_CLASS(rrt::RRTxPlanner, nav_core::BaseGlobalPlanner)
@@ -156,6 +157,7 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
 //   low_res_costmap = costmap_2d::Costmap2D(200, 200, 0.05, 0, 0);
   path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
   stop_pub = n.advertise<actionlib_msgs::GoalID>("/move_base/cancel", 10);
+
 //   map_pub = n.advertise<nav_msgs::OccupancyGrid>("low_res", 10);
 //   poly_pub = n.advertise<visualization_msgs::Marker>("obstacles", 10);
 //   converter.initialize(n);
@@ -192,6 +194,8 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
     
     rrtx_.reset( new RRTx(si) );
 
+    rrt_pub = new RRTxPublisher();
+    rrt_pub->initialize(&n, "map", si);
 }
 
 
@@ -263,9 +267,9 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     pdp_->addStartState(start_);
     pdp_->setGoalState(goal_);
 
-    rrtx_->init(pdp_);
-    rrtx_->setMaxDist(4);
-    rrtx_->grow(1200);
+    rrtx_->setProblemDefinition(pdp_);
+    rrtx_->setRange(4);
+    solved_ = rrtx_->solve(4.0);
     //activate_static_map(false);
 
     return fillPath(goal, plan);
@@ -273,35 +277,42 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
 
 bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
 {
-    RRTx::Path path;
-    if(!rrtx_->computePath(path))
+    PlannerData data(si);
+    rrtx_->getPlannerData(data);
+
+    if(solved_)
     {
-        ROS_WARN("no path found!");
-        return false;
-    }
-    cout << "computed Path: " << path.size() << endl;
+        auto path = pdp_->getSolutionPath()->as<ompl::geometric::PathGeometric>();
+        auto states = path->getStates(); 
 
-    // cout << "before" << endl;
-    vector<geometry_msgs::Pose> poses;
-    buildRosPath(si->getStateSpace(), path, poses);
-    // cout << "after" << endl;
-    for(auto pose : poses)
+        cout << "solved " << states.size() << endl;
+
+        vector<geometry_msgs::Pose> poses;
+        buildRosPath(si->getStateSpace(), states, poses);
+
+        for(auto pose : poses)
+        {
+            //cout << pose.position.x << " " << pose.position.y << endl;
+
+            geometry_msgs::PoseStamped poseStmp;
+            poseStmp.header = goal.header;
+            poseStmp.pose   = pose;
+
+            plan.push_back(poseStmp);
+        }
+        
+        nav_msgs::Path spath;
+        spath.header = plan.back().header;
+        spath.poses = plan;
+        
+        path_pub.publish(spath);
+    }
+    else
     {
-        //cout << pose.position.x << " " << pose.position.y << endl;
-
-        geometry_msgs::PoseStamped poseStmp;
-        poseStmp.header = goal.header;
-        poseStmp.pose   = pose;
-
-        plan.push_back(poseStmp);
+        cout << "not solved" << endl;
     }
-
-    nav_msgs::Path spath;
-    spath.header = plan.back().header;
-    spath.poses = plan;
     
-    path_pub.publish(spath);
-    rrtx_->publish(true, true);
+    rrt_pub->publish(data);
 
     return true;
 

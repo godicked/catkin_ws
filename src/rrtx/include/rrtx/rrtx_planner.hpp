@@ -20,6 +20,8 @@
 #include <ompl/base/ProblemDefinition.h>
 #include <ompl/base/State.h>
 
+#include <rrtx/reeds_shepp_config.hpp>
+#include <rrtx/rrtx_publisher.hpp>
 
 #include "rrtx.hpp"
 
@@ -56,6 +58,8 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
     costmap_2d::Costmap2D low_res_costmap;
     boost::shared_ptr<costmap_2d::Layer> static_layer;
     //costmap_2d::Layer obstacle_layer;
+
+    rrt::RRTxPublisher *rrt_pub;
     
     ros::NodeHandle n;
     ros::Publisher path_pub;
@@ -67,6 +71,7 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
     geometry_msgs::PoseStamped validGoal;
     geometry_msgs::PoseStamped userGoal;
     double goal_tolerance = 0.2;
+    bool solved_;
 
     std::vector<geometry_msgs::PoseStamped> last_plan;
 
