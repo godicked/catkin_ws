@@ -49,7 +49,7 @@ double maxDist;
 double max_steering;
 double wheelbase;
 bool constraint;
-
+double turningRadius;
 typedef ReedsSheppStateSpace::StateType RState;
 
 ProblemDefinitionPtr pdp;
@@ -68,6 +68,14 @@ std::shared_ptr<ros::NodeHandle> n;
 
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
 {
+
+    tf::Pose tfp;
+    
+    //  set start yaw
+    tf::poseMsgToTF(pose.pose.pose, tfp);
+    double yaw = tf::getYaw(tfp.getRotation());
+    start_->setYaw(yaw);
+
     start = pose.pose.pose;
     start_->setX(start.position.x);
     start_->setY(start.position.y);
@@ -88,6 +96,12 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     ROS_INFO("cost %d", cost->getCost(mx, my));
     //return;
 
+    tf::Pose tfp;
+    
+    //  set goal yaw
+    tf::poseMsgToTF(goal.pose, tfp);
+    double yaw = tf::getYaw(tfp.getRotation());
+    goal_->setYaw(yaw);
 
     goal_->setX(goal.pose.position.x);
     goal_->setY(goal.pose.position.y);
@@ -163,6 +177,7 @@ int main(int argc, char **argv)
     n->param<bool>("constraint", constraint, true);
     n->param<double>("max_steering", max_steering, 0.55);
     n->param<double>("wheelbase", wheelbase, 0.26);
+    n->param<double>("turning_radius", turningRadius, 5.0);
 
     ROS_INFO("init with grow_size: %d, max_dist: %.2f", growSize, maxDist);
 
@@ -203,7 +218,7 @@ int main(int argc, char **argv)
 
     cost = costmap.getCostmap();
 
-    StateSpacePtr ss( new CostmapStateSpace(cost, 5.0) );
+    StateSpacePtr ss( new CostmapStateSpace(cost, turningRadius) );
 
     goal_ = ss->allocState()->as<RState>();
     start_ = ss->allocState()->as<RState>();
