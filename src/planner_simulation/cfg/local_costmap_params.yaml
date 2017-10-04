@@ -5,5 +5,5 @@ local_costmap:
   rolling_window: true
   width: 4.0
   height: 4.0
-  plugins:
-    - {name: obstacle_layer,   type: "costmap_2d::ObstacleLayer"}
+  # plugins:
+  #   - {name: obstacle_layer,   type: "costmap_2d::ObstacleLayer"}

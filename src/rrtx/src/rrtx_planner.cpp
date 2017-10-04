@@ -175,7 +175,7 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
 //       }
 //   }
 
-    StateSpacePtr ss( new CostmapStateSpace(costmap_, 5.0) );
+    StateSpacePtr ss( new CostmapStateSpace(costmap_, 1.0) );
 
     goal_ = ss->allocState()->as<SE2State>();
     start_ = ss->allocState()->as<SE2State>();
@@ -194,7 +194,7 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
     
     rrtx_.reset( new RRTx(si) );
 
-    rrt_pub = new RRTxPublisher();
+    rrt_pub.reset( new RRTxPublisher() );
     rrt_pub->initialize(&n, "map", si);
 }
 
@@ -268,8 +268,8 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     pdp_->setGoalState(goal_);
 
     rrtx_->setProblemDefinition(pdp_);
-    rrtx_->setRange(4);
-    solved_ = rrtx_->solve(4.0);
+    rrtx_->setRange(2.0);
+    solved_ = rrtx_->solve(10.0);
     //activate_static_map(false);
 
     return fillPath(goal, plan);

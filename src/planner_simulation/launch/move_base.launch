@@ -28,16 +28,16 @@
     <remap from="map" to="map"/>
     <remap from="cmd_vel" to="robot0/cmd_vel" />
     <remap from="odom" to="robot0/odom" />
-    <rosparam file="$(find planner_simulation)/costmap_common_params.yaml" command="load" ns="global_costmap" />
-    <rosparam file="$(find planner_simulation)/costmap_common_params.yaml" command="load" ns="local_costmap" />
-    <rosparam file="$(find planner_simulation)/local_costmap_params.yaml" command="load" />
-    <rosparam file="$(find planner_simulation)/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find planner_simulation)/cfg/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find planner_simulation)/cfg/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find planner_simulation)/cfg/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find planner_simulation)/cfg/global_costmap_params.yaml" command="load" />
     <!--<param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>-->
     <!--<param name="base_global_planner" value="global_planner/GlobalPlanner"/>-->
     <param name="base_global_planner" value="rrt/RRTxPlanner"/>
     <param name="controller_frequency" value="5.0" />
     <!--<param name="planner_frequency" value="3.0" />-->
-    <rosparam file="$(find planner_simulation)/base_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find planner_simulation)/cfg/base_local_planner_params.yaml" command="load" />
   </node>
 
   <!--<node pkg="dstar_node" type="dstar_node" respawn="false" name="dstar_node" output="screen" />-->

@@ -62,7 +62,7 @@ public:
     {
         double cost = state_cost(state, costmap_).value();
         // std::cout << "cost " << cost << std::endl;
-        return cost < 250;
+        return cost < 100;
     }
 
 private:

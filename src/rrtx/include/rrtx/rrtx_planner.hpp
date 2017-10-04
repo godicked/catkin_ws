@@ -55,11 +55,11 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
 
     costmap_2d::Costmap2DROS *costmap_ros_;
     costmap_2d::Costmap2D *costmap_;
-    costmap_2d::Costmap2D low_res_costmap;
+    
     boost::shared_ptr<costmap_2d::Layer> static_layer;
     //costmap_2d::Layer obstacle_layer;
 
-    rrt::RRTxPublisher *rrt_pub;
+    std::shared_ptr<rrt::RRTxPublisher> rrt_pub;
     
     ros::NodeHandle n;
     ros::Publisher path_pub;
