@@ -1,6 +1,6 @@
 #include <pluginlib/class_list_macros.h>
-#include <rrtx/rrtx_planner.hpp>
-#include <rrtx/spline_curve.hpp>
+#include <rrtx/RRTxPlanner.hpp>
+// #include <rrtx/spline_curve.hpp>
 #include <actionlib_msgs/GoalID.h>
 #include <nav_msgs/Path.h>
 #include <nav_msgs/OccupancyGrid.h>       
@@ -175,26 +175,26 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
 //       }
 //   }
 
-    StateSpacePtr ss( new CostmapStateSpace(costmap_, 1.0) );
+    StateSpacePtr ss( new ReedsSheppCostmap(costmap_, 1.0) );
 
     goal_ = ss->allocState()->as<SE2State>();
     start_ = ss->allocState()->as<SE2State>();
 
     si.reset( new SpaceInformation(ss) );
-    MotionValidatorPtr mv( new CostmapMotionValidator(si.get()) );
+    // MotionValidatorPtr mv( new ReedsSheppCostmapMotionValidator(si.get()) );
     StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), costmap_) );
-    OptimizationObjectivePtr oop( new CostmapOptimizationObjective(si, costmap_) );
+    OptimizationObjectivePtr oop( new ReedsSheppOptimizationObjective(si, costmap_) );
     pdp_.reset( new ProblemDefinition(si) );
     // MotionValidatorPtr mvp( new ReedsSheppMotionValidator(si.get()));
 
     pdp_->setOptimizationObjective( oop );
     si->setStateValidityChecker( svcp );
-    si->setMotionValidator(mv);
+    // si->setMotionValidator(mv);
     // si->setStateValidityCheckingResolution(0.9);
     
     rrtx_.reset( new RRTx(si) );
 
-    rrt_pub.reset( new RRTxPublisher() );
+    rrt_pub.reset( new ReedsSheppPublisher() );
     rrt_pub->initialize(&n, "map", si);
 }
 
@@ -288,7 +288,7 @@ bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<g
         cout << "solved " << states.size() << endl;
 
         vector<geometry_msgs::Pose> poses;
-        buildRosPath(si->getStateSpace(), states, poses);
+        buildRosPath(si, states, poses);
 
         for(auto pose : poses)
         {

@@ -1,20 +1,18 @@
 #ifndef RRTX_PUBLISHER_HPP
 #define RRTX_PUBLISHER_HPP
 
-#include <ros/ros.h>
-
-#include <rrtx/rrtx_struct.hpp>
-
-#include <visualization_msgs/Marker.h>
-#include <geometry_msgs/PoseStamped.h>
-
-// #include <ompl/base/spaces/SE2StateSpace.h>
-// #include <ompl/base/spaces/ReedsSheppStateSpace.h>
-#include <rrtx/reeds_shepp_config.hpp>
-#include <ompl/base/SpaceInformation.h>
 #include <algorithm>
 
+#include <rrtx/RRTxStruct.hpp>
+
+#include <ros/ros.h>
+#include <visualization_msgs/Marker.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <math.h>
+#include <ompl/base/SpaceInformation.h>
 #include <ompl/base/PlannerData.h>
+
+#include <rrtx/ReedsSheppConfig.hpp>
 
 #define GOAL_ID 0
 #define VBOT_ID 1
@@ -22,7 +20,6 @@
 #define PATH_EDGE_ID 3
 #define TREE_NODE_ID 4
 #define TREE_EDGE_ID 5
-#define INF_TRAJ_ID 6
 
 using namespace ompl::base;
 
@@ -145,20 +142,25 @@ namespace rrt
             goal_.ns                    = "pose";
             goal_.id                    = GOAL_ID;
             goal_.action                = visualization_msgs::Marker::ADD;
-            goal_.type                  = visualization_msgs::Marker::POINTS;
+            goal_.type                  = visualization_msgs::Marker::ARROW;
 
-            goal_.pose.orientation.w    = 1.0;
-            goal_.scale.x               = 0.1;
-            goal_.scale.y               = 0.1;
+
+            goal_.pose.orientation.x    = 0;
+            goal_.pose.orientation.y    = 0;
+            goal_.pose.orientation.z    = sin(getYaw(goal) / 2);
+            goal_.pose.orientation.w    = cos(getYaw(goal) / 2);
+
+            goal_.scale.x               = 0.6;
+            goal_.scale.y               = 0.3;
+            goal_.scale.z               = 0.1;
 
             goal_.color.a               = 1;
             goal_.color.r               = 1;
 
-            geometry_msgs::Point pgoal;
-            pgoal.x = getX(goal);
-            pgoal.y = getY(goal);
-            pgoal.z = 1;
-            goal_.points.push_back(pgoal);
+            goal_.pose.position.x = getX(goal);
+            goal_.pose.position.y = getY(goal);
+            goal_.pose.position.z = 1;
+            // goal_.points.push_back(pgoal);
 
             marker_pub.publish(goal_);
 
@@ -169,21 +171,25 @@ namespace rrt
             vbot.ns                    = "pose";
             vbot.id                    = VBOT_ID;
             vbot.action                = visualization_msgs::Marker::ADD;
-            vbot.type                  = visualization_msgs::Marker::POINTS;
+            vbot.type                  = visualization_msgs::Marker::ARROW;
 
-            vbot.pose.orientation.w    = 1.0;
-            vbot.scale.x               = 0.1;
-            vbot.scale.y               = 0.1;
+            vbot.pose.orientation.x    = 0;
+            vbot.pose.orientation.y    = 0;
+            vbot.pose.orientation.z    = sin(getYaw(start) / 2);
+            vbot.pose.orientation.w    = cos(getYaw(start) / 2);
+
+            vbot.scale.x               = 0.6;
+            vbot.scale.y               = 0.3;
+            vbot.scale.z               = 0.1;
 
             vbot.color.a               = 1;
             vbot.color.r               = 1;
             vbot.color.g               = 1;
 
-            geometry_msgs::Point pvbot;
-            pvbot.x = getX(start);
-            pvbot.y = getY(start);
-            pvbot.z = 1;
-            vbot.points.push_back(pvbot);
+            vbot.pose.position.x = getX(start);
+            vbot.pose.position.y = getY(start);
+            vbot.pose.position.z = 1;
+            // vbot.points.push_back(pvbot);
             
             marker_pub.publish(vbot);
         }
@@ -241,77 +247,9 @@ namespace rrt
             marker_pub.publish(edges_);
         }
 
-        // void publishInfTrajectories(std::vector<Trajectory *> trajectories)
-        // {
-        //     visualization_msgs::Marker edges;
+    protected:
 
-        //     edges.header.frame_id  = map_frame_;
-        //     edges.header.stamp     = ros::Time::now();
-        //     edges.ns               = "infTrajectories";
-        //     edges.id               = INF_TRAJ_ID; 
-        //     edges.action           = visualization_msgs::Marker::ADD;
-        //     edges.type             = visualization_msgs::Marker::LINE_LIST;
-
-        //     edges.scale.x          = 0.01;
-        //     edges.scale.y          = 0.01;
-
-        //     edges.color.a          = 1;
-        //     edges.color.r          = 1;
-
-        //     for(auto traj : trajectories)
-        //     {
-        //         geometry_msgs::Point p1, p2;
-        //         p1.x = getX(traj->source->state);
-        //         p1.y = getY(traj->source->state);
-                
-        //         p2.x = getX(traj->target->state);
-        //         p2.y = getY(traj->target->state);
-
-        //         edges.points.push_back(p1);
-        //         edges.points.push_back(p2);
-        //     }
-
-        //     marker_pub.publish(edges);
-        // }
-
-    private:
-
-        void trajectoryPose(const State *v, const State *u, std::vector<geometry_msgs::Pose> &poses)
-        {
-            double dist = si_->distance(v, u);
-            auto ss = si_->getStateSpace()->as<ReedsSheppStateSpace>();
-            double t = 1 / (dist * 4);
-            ReedsSheppStateSpace::ReedsSheppPath path;
-            bool firstTime = true;
-
-            // std::cout << "dist " << dist << std::endl;
-            // std::cout << "t " << t << std::endl;
-
-
-            for(double i = 0; i < 1+t; i += t)
-            {
-                // std::cout << "i: " << i << std::endl;
-                i = std::min(i, 1.0);
-
-                geometry_msgs::Pose p;
-                ReedsSheppStateSpace::StateType *state = ss->allocState()->as<ReedsSheppStateSpace::StateType>();
-
-                ss->interpolate(v, u, i, firstTime, path, state);
-                p.position.x = state->getX();
-                p.position.y = state->getY();
-                poses.push_back(p);
-
-                if(i == 1)
-                    break;
-            }
-
-            // for(int i = 0; i < 5; i++)
-            // {
-            //     std::cout << " " << path.length_[i];
-            // }
-            
-            // std::cout << std::endl;
-        }
+        virtual void trajectoryPose(const State *v, const State *u, std::vector<geometry_msgs::Pose> &poses) = 0;
 
         void poseToLinesRviz(std::vector<geometry_msgs::Pose> &poses, std::vector<geometry_msgs::Point> &lines)
         {

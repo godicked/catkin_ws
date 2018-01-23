@@ -1,0 +1,6 @@
+constraint: true
+solve_time: 5
+turning_radius: 1
+max_dist: 2
+grow_size: 1000
+limit_time: false

@@ -20,10 +20,10 @@
 #include <ompl/base/ProblemDefinition.h>
 #include <ompl/base/State.h>
 
-#include <rrtx/reeds_shepp_config.hpp>
-#include <rrtx/rrtx_publisher.hpp>
+#include <rrtx/ReedsSheppConfig.hpp>
+#include <rrtx/ReedsSheppPublisher.hpp>
 
-#include "rrtx.hpp"
+#include "RRTx.hpp"
 
 namespace rrt
 {

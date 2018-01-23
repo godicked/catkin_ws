@@ -4,7 +4,7 @@
 #include <iostream>
 
 #include <boost/heap/fibonacci_heap.hpp>
-#include <rrtx/rrtx_struct.hpp>
+#include <rrtx/RRTxStruct.hpp>
 
 // #include <ompl/geometric/planners/rrt/RRTstar.h>
 #include <ompl/datastructures/NearestNeighborsGNAT.h> 
@@ -60,6 +60,13 @@ namespace rrt
             }
 
             void freeMemory();
+
+            void setSearchPath(std::vector<ompl::base::State *> path, double sample_dist)
+            {
+                path_ = path;
+                path_sample_ = true;
+                sample_dist_ = sample_dist;
+            }
 
             void updateTree(ob::State *center, double radius); //
             
@@ -154,6 +161,10 @@ namespace rrt
 
             ob::OptimizationObjectivePtr opt_;
             ob::StateSamplerPtr sampler_;
+
+            std::vector<ompl::base::State *> path_;
+            bool path_sample_ = false;
+            double sample_dist_ = 0;
 
     };
 

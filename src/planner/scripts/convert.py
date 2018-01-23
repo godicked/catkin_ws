@@ -61,9 +61,9 @@ if __name__ == '__main__':
     
     rospy.init_node('cmd_vel_to_manual_control')
   
-    twist_cmd_topic = rospy.get_param('~twist_cmd_topic', '/robot0/cmd_vel')
+    twist_cmd_topic = rospy.get_param('~twist_cmd_topic', '/cmd_vel')
     speed_cmd_topic = rospy.get_param('~speed_cmd_topic', '/manual_control/speed')
-    steer_cmd_topic = rospy.get_param('steer_cmd_topic', 'manual_control/steering2')
+    steer_cmd_topic = rospy.get_param('steer_cmd_topic', '/manual_control/steering2')
     wheelbase = rospy.get_param('~wheelbase', 0.26)
     
     rospy.Subscriber(twist_cmd_topic, Twist, cmd_callback, queue_size=1)

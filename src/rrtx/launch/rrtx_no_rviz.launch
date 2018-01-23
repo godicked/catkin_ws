@@ -5,6 +5,7 @@
   
   <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx_node" output="screen">
     <rosparam file="$(find rrtx)/config/costmap.yaml" command="load" />
+    <rosparam file="$(find rrtx)/config/params.yaml" command="load" />
   </node>
 
   <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map base_link 100" />

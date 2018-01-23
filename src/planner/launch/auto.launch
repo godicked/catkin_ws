@@ -9,7 +9,7 @@
   <include file="$(find odometry)/launch/odometry.launch" />
    
   <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map odom 100" />
-    <node pkg="tf" type="static_transform_publisher" name="laser_tf_broadcaster" args="0 0 0 0 0 0 1 base_link laser 100" />
+    <node pkg="tf" type="static_transform_publisher" name="laser_tf_broadcaster" args="0 0 0 0 0 1 0 base_link laser 100" />
 
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
     <!--<remap from="cmd_vel" to="motor_control/twist" />-->

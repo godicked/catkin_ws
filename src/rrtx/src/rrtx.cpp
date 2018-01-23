@@ -1,14 +1,21 @@
-#include <rrtx/rrtx.hpp>
+#include <rrtx/RRTx.hpp>
 
 #include <ompl/base/goals/GoalState.h>
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/util/GeometricEquations.h>
 
 
+#include <random>
+
 using namespace std;
 using namespace boost;
 using namespace ompl;
 using namespace ompl::base;
+
+
+
+std::random_device rd;     // only used once to initialise (seed) engine
+std::mt19937 rng(rd());    // random-number engine used (Mersenne-Twister in this case)
 
 
 namespace rrt
@@ -524,7 +531,17 @@ namespace rrt
         motion->state = si_->allocState();
         motion->lmc = opt_->infiniteCost();
         motion->g = opt_->infiniteCost();
-        sampler_->sampleUniform(motion->state);
+
+        if(!path_sample_)
+        {
+            sampler_->sampleUniform(motion->state);
+        }
+        else
+        {
+            std::uniform_int_distribution<int> uni(0,path_.size()-1); // guaranteed unbiased
+            auto random_integer = uni(rng);
+            sampler_->sampleUniformNear(motion->state, path_[random_integer], sample_dist_);
+        }
 
         return motion;
     }
@@ -599,6 +616,8 @@ namespace rrt
         PlannerSolution solution(path);
         pdef_->clearSolutionPaths();
         pdef_->addSolutionPath(solution);
+
+        cout << "q " << q_.size() << endl;
 
     }
 

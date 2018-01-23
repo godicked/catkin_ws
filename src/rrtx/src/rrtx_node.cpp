@@ -4,9 +4,6 @@
 #include <costmap_2d/static_layer.h>
 #include <costmap_2d/costmap_2d_ros.h>
 
-#include <costmap_converter/costmap_to_lines_ransac.h>
-#include <costmap_converter/costmap_to_polygons.h>
-
 #include <tf/transform_listener.h>
 
 #include <nav_msgs/GetMap.h>
@@ -17,18 +14,20 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Pose.h>
 
-#include <rrtx/spline_curve.hpp>
+// #include <rrtx/spline_curve.hpp>
 
-#include "rrtx/rrtx.hpp"
+#include <rrtx/RRTx.hpp>
 
-#include <rrtx/rrtx_publisher.hpp>
+#include <rrtx/ReedsSheppPublisher.hpp>
 
-#include <rrtx/reeds_shepp_config.hpp>
+#include <rrtx/ReedsSheppConfig.hpp>
 
 #include <ompl/geometric/planners/rrt/RRTstar.h>
 #include <ompl/base/spaces/SE2StateSpace.h>
 #include <ompl/base/ProblemDefinition.h>
 #include <ompl/base/MotionValidator.h>
+
+#include <rrtx/SE2Publisher.hpp>
 
 #define PLANNER rrtx
 
@@ -48,10 +47,14 @@ int growSize;
 double maxDist;
 double max_steering;
 double wheelbase;
-bool constraint;
 double turningRadius;
 double solveTime;
+bool constraint;
+bool limitTime;
+
+
 typedef ReedsSheppStateSpace::StateType RState;
+
 
 costmap_2d::Costmap2DROS *costmap;
 
@@ -68,6 +71,7 @@ geometry_msgs::Pose start;
 
 std::shared_ptr<ros::NodeHandle> n;
 
+bool test = false;
 
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
 {
@@ -104,6 +108,8 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     //return;
 
     tf::Pose tfp;
+
+    if(test) growSize /= 10;
     
     //  set goal yaw
     tf::poseMsgToTF(goal.pose, tfp);
@@ -116,14 +122,23 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     pdp->clearGoal();
     pdp->setGoalState(goal_);
 
-    // const PlannerTerminationCondition ptc([&](){ return PLANNER->numIterations() >= growSize; });
+    const PlannerTerminationCondition ptc([&](){ return PLANNER->numIterations() >= growSize; });
     PLANNER->clear();
     pdp->clearSolutionPaths();
     PLANNER->setProblemDefinition(pdp);
     PLANNER->setRange(maxDist);
 
     ros::Time t = ros::Time::now();
-    auto solved = PLANNER->as<Planner>()->solve(solveTime);
+    bool solved;
+    
+    if(limitTime)
+    {
+        solved = PLANNER->as<Planner>()->solve(solveTime);
+    }
+    else 
+    {
+        solved = PLANNER->solve(ptc);
+    }
     ros::Duration d = ros::Time::now() - t;
 
     ROS_INFO("solve took %.2f seconds", d.toSec());
@@ -132,25 +147,25 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 
 
 
-    for(int x = 0; x < 80; x++)
-    {
-        for(int y = 0; y < 400; y++)
-        {
-            cost->setCost(500+x, 300+y, 254);
-        }
-    }
-    costmap->updateMap();
+    // for(int x = 0; x < 80; x++)
+    // {
+    //     for(int y = 0; y < 400; y++)
+    //     {
+    //         cost->setCost(500+x, 300+y, 254);
+    //     }
+    // }
+    // costmap->updateMap();
 
-    auto center = si->allocState()->as<RState>();
-    double wx, wy;
-    cost->mapToWorld(526, 424, wx, wy);
-    center->setXY(wx, wy);
+    // auto center = si->allocState()->as<RState>();
+    // double wx, wy;
+    // cost->mapToWorld(526, 424, wx, wy);
+    // center->setXY(wx, wy);
 
-    t = ros::Time::now();
-    rrtx->updateTree(center, 2.0);
-    d = ros::Time::now() - t;
+    // t = ros::Time::now();
+    // rrtx->updateTree(center, 2.0);
+    // d = ros::Time::now() - t;
 
-    ROS_INFO("update took %.2f seconds", d.toSec());
+    // ROS_INFO("update took %.2f seconds", d.toSec());
 
     PlannerData data(si);
     PLANNER->getPlannerData(data);
@@ -163,7 +178,12 @@ void goalCallback(geometry_msgs::PoseStamped goal)
         cout << "solved " << states.size() << endl;
 
         vector<geometry_msgs::Pose> poses;
-        buildRosPath(si->getStateSpace(), states, poses);
+        buildRosPath(si, states, poses);
+
+        vector<ompl::base::State *> old_path;
+        poses_to_states(si, poses, old_path);
+        test = true;
+        PLANNER->as<RRTx>()->setSearchPath(old_path, 1);
 
         std::vector<geometry_msgs::PoseStamped> plan;
         for(auto pose : poses)
@@ -193,13 +213,53 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     // rrtx->publish(true, true);
 }
 
+void rrtxSetup()
+{
+    StateSpacePtr ss;
+    OptimizationObjectivePtr oop;
+
+    if(constraint)
+    {
+        ss.reset( new ReedsSheppCostmap(cost, turningRadius) );
+    }
+    else
+    {
+        ss.reset( new SE2Costmap(cost) );
+    }
+
+    si.reset( new SpaceInformation(ss) );
+
+    if(constraint)
+        oop.reset( new SE2OptimizationObjective(si, cost) );
+    else
+        oop.reset( new ReedsSheppOptimizationObjective(si, cost) );
+
+
+    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), cost) );
+    pdp.reset( new ProblemDefinition(si) );
+
+    pdp->setOptimizationObjective( oop );
+    si->setStateValidityChecker( svcp );
+    
+    if(constraint)
+        rrt_pub.reset( new ReedsSheppPublisher() );
+    else
+        rrt_pub.reset( new SE2Publisher() );
+    
+    rrt_pub->initialize(n.get(), "map", si);
+
+    rrtx.reset( new RRTx(si) );
+
+    goal_ = ss->allocState()->as<RState>();
+    start_ = ss->allocState()->as<RState>();
+}
+
 int main(int argc, char **argv)
 {
     
     ros::init(argc, argv, "rrtx_node");
     
     n.reset( new ros::NodeHandle("~/") );
-    n->setParam("bool_param", false);
 
     n->param<int>("grow_size", growSize, 1000);
     n->param<double>("max_dist", maxDist, 2.0);
@@ -208,6 +268,9 @@ int main(int argc, char **argv)
     n->param<double>("wheelbase", wheelbase, 0.26);
     n->param<double>("turning_radius", turningRadius, 5.0);
     n->param<double>("solve_time", solveTime, 3.0);
+    n->param<bool>("limit_time", limitTime, true);
+
+    
 
     ROS_INFO("init with grow_size: %d, max_dist: %.2f", growSize, maxDist);
 
@@ -222,57 +285,10 @@ int main(int argc, char **argv)
 
     tf::TransformListener tf(ros::Duration(10));
     costmap = new costmap_2d::Costmap2DROS("costmap", tf);
-
-    // client.waitForExistence();
-    // if(client.call(srv)) {
-    //     nav_msgs::OccupancyGrid map = srv.response.map;
-    //     costmap = costmap_2d::StaticLayer(
-    //         map.info.width,
-    //         map.info.height,
-    //         map.info.resolution,
-    //         map.info.origin.position.x,
-    //         map.info.origin.position.y
-    //     );
-
-    //     for(unsigned int i = 0; i < map.data.size(); i++)
-    //     {
-    //         unsigned int mx, my;
-    //         costmap.indexToCells(i, mx, my);
-    //         costmap.setCost(mx, my, map.data[i]);
-    //     }
-    // }
-    // else 
-    // {
-    //     ROS_WARN("Could not get map from service");
-    // }
-
     cost = costmap->getCostmap();
 
-    StateSpacePtr ss( new CostmapStateSpace(cost, turningRadius) );
+    rrtxSetup();
 
-    goal_ = ss->allocState()->as<RState>();
-    start_ = ss->allocState()->as<RState>();
-
-    si.reset( new SpaceInformation(ss) );
-    MotionValidatorPtr mv( new CostmapMotionValidator(si.get()) );
-    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), cost) );
-    OptimizationObjectivePtr oop( new CostmapOptimizationObjective(si, cost) );
-    pdp.reset( new ProblemDefinition(si) );
-    // MotionValidatorPtr mvp( new ReedsSheppMotionValidator(si.get()));
-
-    pdp->setOptimizationObjective( oop );
-    si->setStateValidityChecker( svcp );
-    si->setMotionValidator(mv);
-    // si->setStateValidityCheckingResolution(0.9);
-    
-    // rrtx = new RRTx(si);
-    // rrtx->setMaxDist(maxDist);
-    
-    rrt_pub.reset( new RRTxPublisher() );
-    rrt_pub->initialize(n.get(), "map", si);
-
-    rrts.reset( new RRTstar(si) );
-    rrtx.reset( new RRTx(si) );
     ros::spin();
 
     return 0;

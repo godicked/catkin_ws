@@ -1,4 +1,4 @@
-image: 400x400.png
+image: 300x300.png
 resolution: 0.04
 origin: [-8.0, -8.0, 0.0]
 occupied_thresh: 0.65
