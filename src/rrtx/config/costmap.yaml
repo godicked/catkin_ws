@@ -1,10 +1,10 @@
 costmap:
     plugins: 
         - {name: static_map, type: "costmap_2d::StaticLayer"}
-        - {name: inflation_layer,  type: "costmap_2d::InflationLayer"}
+        # - {name: inflation_layer,  type: "costmap_2d::InflationLayer"}
     
-    inflation_layer:
-        inflation_radius: 5
-        cost_scaling_factor: 200
+    # inflation_layer:
+        # inflation_radius: 1
+        # cost_scaling_factor: 200
 
-    footprint: [[-0.2, 0.2], [0.2, 0.2], [0.2, -0.2], [-0.2, -0.2]]
+    footprint: [[-0.4, 0.13], [0.4, 0.13], [0.4, -0.13], [-0.4, -0.13]]

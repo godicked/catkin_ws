@@ -56,7 +56,7 @@ namespace rrt
             }
 
             std::vector<std::pair<const State *, const State *> > edges;
-            size = data.numEdges();
+            size = data.numVertices();
             for(unsigned int i = 0; i < size; i++)
             {
                 std::vector<unsigned int> nbhs;
@@ -150,9 +150,9 @@ namespace rrt
             goal_.pose.orientation.z    = sin(getYaw(goal) / 2);
             goal_.pose.orientation.w    = cos(getYaw(goal) / 2);
 
-            goal_.scale.x               = 0.6;
-            goal_.scale.y               = 0.3;
-            goal_.scale.z               = 0.1;
+            goal_.scale.x               = 0.3;
+            goal_.scale.y               = 0.15;
+            goal_.scale.z               = 0.05;
 
             goal_.color.a               = 1;
             goal_.color.r               = 1;
@@ -178,9 +178,9 @@ namespace rrt
             vbot.pose.orientation.z    = sin(getYaw(start) / 2);
             vbot.pose.orientation.w    = cos(getYaw(start) / 2);
 
-            vbot.scale.x               = 0.6;
-            vbot.scale.y               = 0.3;
-            vbot.scale.z               = 0.1;
+            vbot.scale.x               = 0.3;
+            vbot.scale.y               = 0.15;
+            vbot.scale.z               = 0.05;
 
             vbot.color.a               = 1;
             vbot.color.r               = 1;

@@ -46,6 +46,8 @@ public:
         Path p = ss->reedsShepp(s1, s2);
         double dist = 0;
 
+        bool direction = p.length_[0] >= 0;
+
         for(int i = 0; i < 5; i++)
         {
             double d = p.length_[i];
@@ -57,6 +59,14 @@ public:
             {
                 dist += d;
             }
+
+            bool dir = d >= 0;
+            if( direction != dir && d != 0)
+            {
+                direction = dir;
+            // dist += 50;
+            }
+
         }
         // return ompl::base::Cost(p.length());
         return ompl::base::Cost(dist);
@@ -109,6 +119,7 @@ void buildRosPath(ompl::base::SpaceInformationPtr si, std::vector<ompl::base::St
         geometry_msgs::Pose p;
         p.position.x = getX(s);
         p.position.y = getY(s);
+        p.position.z = 0.5;
 
         p.orientation.x = 0;
         p.orientation.y = 0;

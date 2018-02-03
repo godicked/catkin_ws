@@ -182,7 +182,7 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
 
     si.reset( new SpaceInformation(ss) );
     // MotionValidatorPtr mv( new ReedsSheppCostmapMotionValidator(si.get()) );
-    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), costmap_) );
+    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), costmap_, 0.3, 0.15) );
     OptimizationObjectivePtr oop( new ReedsSheppOptimizationObjective(si, costmap_) );
     pdp_.reset( new ProblemDefinition(si) );
     // MotionValidatorPtr mvp( new ReedsSheppMotionValidator(si.get()));

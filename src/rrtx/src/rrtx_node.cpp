@@ -71,7 +71,7 @@ geometry_msgs::Pose start;
 
 std::shared_ptr<ros::NodeHandle> n;
 
-bool test = false;
+int test = 0;
 
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
 {
@@ -86,6 +86,9 @@ void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose)
     start = pose.pose.pose;
     start_->setX(start.position.x);
     start_->setY(start.position.y);
+
+    // start_->setX(1.3);
+    // start_->setY(2.4);
 
     // unsigned int mx, my;
     // cost->worldToMap(start.position.x, start.position.y, mx, my);
@@ -109,8 +112,9 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 
     tf::Pose tfp;
 
-    if(test) growSize /= 10;
-    
+    if(test == 0)
+    {
+        cout << "first solve" << endl;
     //  set goal yaw
     tf::poseMsgToTF(goal.pose, tfp);
     double yaw = tf::getYaw(tfp.getRotation());
@@ -119,17 +123,37 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     goal_->setX(goal.pose.position.x);
     goal_->setY(goal.pose.position.y);
 
+    // goal_->setX(7.7);
+    // goal_->setY(9.2);
+
+    PLANNER->clear();
+    pdp->clearSolutionPaths();
+
     pdp->clearGoal();
     pdp->setGoalState(goal_);
 
-    const PlannerTerminationCondition ptc([&](){ return PLANNER->numIterations() >= growSize; });
-    PLANNER->clear();
-    pdp->clearSolutionPaths();
     PLANNER->setProblemDefinition(pdp);
     PLANNER->setRange(maxDist);
 
+    }
+    else
+    {
+        // PLANNER->clear();
+        pdp->clearSolutionPaths();
+        PLANNER->setProblemDefinition(pdp);
+        // PLANNER->setRange(5);
+        if(test > 5) solveTime = 30;
+    }
+
+
+    const PlannerTerminationCondition ptc([&](){ return PLANNER->numIterations() >= growSize; });
+
     ros::Time t = ros::Time::now();
-    bool solved;
+    ros::Duration d;
+    bool solved = false;
+
+    if(test == 0)
+    {
     
     if(limitTime)
     {
@@ -139,34 +163,38 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     {
         solved = PLANNER->solve(ptc);
     }
-    ros::Duration d = ros::Time::now() - t;
+    d = ros::Time::now() - t;
 
     ROS_INFO("solve took %.2f seconds", d.toSec());
     ROS_INFO("%d iterations", PLANNER->numIterations());
     // cout << "vertices : " << rrts->numVertices() << endl;
+    }
 
+    if(test > 0)
+    {
+        for(int x = 0; x < 50; x++)
+        {
+            for(int y = 0; y < 100; y++)
+            {
+                cost->setCost(150+x, 90+y, 254);
+            }
+        }
+        costmap->updateMap();
+    
+        auto center = si->allocState()->as<RState>();
+        double wx, wy;
+        cost->mapToWorld(175, 130, wx, wy);
+        center->setXY(wx, wy);
+    
+        t = ros::Time::now();
+        solved = rrtx->updateTree(center, 10.0);
+        d = ros::Time::now() - t;
+    
+        ROS_INFO("update took %.2f seconds", d.toSec());
+        test++;
 
-
-    // for(int x = 0; x < 80; x++)
-    // {
-    //     for(int y = 0; y < 400; y++)
-    //     {
-    //         cost->setCost(500+x, 300+y, 254);
-    //     }
-    // }
-    // costmap->updateMap();
-
-    // auto center = si->allocState()->as<RState>();
-    // double wx, wy;
-    // cost->mapToWorld(526, 424, wx, wy);
-    // center->setXY(wx, wy);
-
-    // t = ros::Time::now();
-    // rrtx->updateTree(center, 2.0);
-    // d = ros::Time::now() - t;
-
-    // ROS_INFO("update took %.2f seconds", d.toSec());
-
+    }
+    
     PlannerData data(si);
     PLANNER->getPlannerData(data);
 
@@ -180,10 +208,10 @@ void goalCallback(geometry_msgs::PoseStamped goal)
         vector<geometry_msgs::Pose> poses;
         buildRosPath(si, states, poses);
 
-        vector<ompl::base::State *> old_path;
-        poses_to_states(si, poses, old_path);
-        test = true;
-        PLANNER->as<RRTx>()->setSearchPath(old_path, 1);
+        // vector<ompl::base::State *> old_path;
+        // poses_to_states(si, poses, old_path);
+        test++;
+        // PLANNER->as<RRTx>()->setSearchPath(old_path, 1);
 
         std::vector<geometry_msgs::PoseStamped> plan;
         for(auto pose : poses)
@@ -229,13 +257,13 @@ void rrtxSetup()
 
     si.reset( new SpaceInformation(ss) );
 
-    if(constraint)
+    if(false)
         oop.reset( new SE2OptimizationObjective(si, cost) );
     else
         oop.reset( new ReedsSheppOptimizationObjective(si, cost) );
 
 
-    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), cost) );
+    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), cost, 0.30, 0.15) );
     pdp.reset( new ProblemDefinition(si) );
 
     pdp->setOptimizationObjective( oop );

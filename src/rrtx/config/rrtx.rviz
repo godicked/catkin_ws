@@ -7,6 +7,7 @@ Panels:
         - /Global Options1
         - /RRTx Tree1
         - /RRTx Tree1/Namespaces1
+        - /Map1
         - /Marker2
         - /Marker2/Namespaces1
       Splitter Ratio: 0.5
@@ -97,6 +98,7 @@ Visualization Manager:
       Marker Topic: /rrtx_node/tree
       Name: Marker
       Namespaces:
+        pose: true
         tree: true
       Queue Size: 100
       Value: true
@@ -133,11 +135,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Scale: 41.8098488
+      Scale: 49.0702934
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 6.28689575
-      Y: 4.79055929
+      X: 6.34509277
+      Y: 5.68333101
     Saved: ~
 Window Geometry:
   Displays:

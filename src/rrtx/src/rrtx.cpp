@@ -7,6 +7,11 @@
 
 #include <random>
 
+#include <ros/ros.h>
+
+#include <iostream>
+#include <fstream>
+
 using namespace std;
 using namespace boost;
 using namespace ompl;
@@ -32,9 +37,12 @@ namespace rrt
 
     void RRTx::setup()
     {
+        if(setup_) return;
         Planner::setup();
         // free memory before allocating new space
         clear();
+
+        setup_ = true;
 
         if(!pdef_)
         {
@@ -56,7 +64,8 @@ namespace rrt
 
         // As defined in RRT* Y >= 2(1 + 1/dim)^(1/dim) * u(XFree)
         // u = volume, XFree = free space. y > Y since we use total volume of map
-        const double dim = si_->getStateDimension();
+        // const double dim = si_->getStateDimension();
+        const double dim = 2;
         const double free = si_->getSpaceMeasure();
 
         y_ = std::pow(2*(1 + 1 / dim), 1 / dim) * std::pow(free / unitNBallMeasure(dim), 1 / dim);
@@ -70,34 +79,78 @@ namespace rrt
         // setup
         checkValidity();
 
+        cout << "start with maxDist " << maxDist_ << endl;
+
+        vector<double> costs;
+        vector<ros::Duration> times;
+        vector<double> radius;
+
+        auto time = ros::Time::now();
+
         while(!ptc)
         {
             iteration_++;
             grow();
+            
+            costs.push_back(vbot_->lmc.value());
+            times.push_back(ros::Time::now() - time);
+            radius.push_back(radius_);
         }
+
+        ofstream myfile;
+        myfile.open ("/home/godicke/BachelorArbeit/benchmark.txt");
+
+        if( !myfile )
+        {
+           cout << "Couldn't open file."  << endl;
+        }
+        
+        for(int i = 0; i < costs.size(); i++)
+        {
+            myfile << i << "," << times[i].toSec() << "," << costs[i] << "," << radius[i] << "\n";
+        }
+        myfile.close();
+
+        computePath();
 
         bool solved = !opt_->isCostEquivalentTo(vbot_->lmc, opt_->infiniteCost());
+        return PlannerStatus(solved, false);
+    }
 
-        if(solved)
+    void RRTx::computePath()
+    {   
+        vector<Motion *> mpath;
+        // follow parent Motion
+        for(Motion *v = vbot_; v != nullptr; v = v->parent)
         {
-            vector<Motion *> mpath;
-            // follow parent Motion
-            for(Motion *v = vbot_; v != nullptr; v = v->parent)
-                mpath.push_back(v);
-
-            // fill path information
-            std::shared_ptr<geometric::PathGeometric> path( new geometric::PathGeometric(si_) );
-            for(auto v : mpath)
-                path->append(v->state);
-            
-            PlannerSolution solution(path);
-            solution.setPlannerName(getName());
-
-            pdef_->addSolutionPath(solution);
-
+            mpath.push_back(v);
         }
 
-        return PlannerStatus(solved, false);
+
+        // fill path information
+        std::shared_ptr<geometric::PathGeometric> path( new geometric::PathGeometric(si_) );
+        for(auto v : mpath)
+        {
+            path->append(v->state);
+        }
+        
+        PlannerSolution solution(path);
+        solution.setPlannerName(getName());
+        pdef_->clearSolutionPaths();
+        pdef_->addSolutionPath(solution);
+
+        cout << "path cost: " << path->cost(opt_) << endl;
+        cout << "path length: " << path->length() << endl;
+
+        for(int i = 0; i < mpath.size() -1; i++)
+        {
+            auto s1 = mpath[i];
+            auto s2 = mpath[i+1];
+            if (!opt_->isCostBetterThan(getCost(s1,s2), opt_->infiniteCost()))
+            {
+                cout << "WARING path has inf cost" << endl;
+            }
+        }
     }
 
     void RRTx::clear()
@@ -151,6 +204,17 @@ namespace rrt
                 continue;
             data.addEdge(base::PlannerDataVertex(m->state), base::PlannerDataVertex(m->parent->state));
         }
+
+        // for(auto m : motions)
+        // {
+        //     for(auto n : m->inNbhs())
+        //     {
+        //         if (opt_->isCostEquivalentTo(getCost(m, n), opt_->infiniteCost()))
+        //             continue;
+        //         data.addEdge(base::PlannerDataVertex(m->state), base::PlannerDataVertex(n->state));
+        //     }
+            
+        // }
 
         cout << "vertices " << nn_->size() << endl;
         cout << "radius " << radius_ << endl;
@@ -309,6 +373,11 @@ namespace rrt
 
             //Take first Motion from queue and remove it
             Motion *v = queuePop();
+
+            if(v->parent == nullptr)
+            {
+                cout << "WARNING REDUCE" << endl;
+            }
             
             auto cost = opt_->combineCosts(v->lmc, epsilon);
             if(opt_->isCostBetterThan(cost, v->g))
@@ -369,6 +438,9 @@ namespace rrt
         auto nbhs = v->outNbhs();
         for(Motion *u : nbhs)
         {
+            if(orphanHash.find(u) != orphanHash.end())
+                continue;
+
             if(u->parent == v)
                 continue;
 
@@ -425,9 +497,10 @@ namespace rrt
     /*
     **  Get Cost between two Motion
     */
-    Cost RRTx::getCost(Motion *a, Motion *b)
+    Cost RRTx::getCost(Motion *a, Motion *b) const 
     {
-        return costs_[std::make_pair(a, b)];
+        auto pair = std::make_pair(a, b);
+        return costs_.find(pair)->second;
     }
 
     /**
@@ -458,6 +531,12 @@ namespace rrt
     */
 	void RRTx::queueInsert(Motion *v)
     {
+
+        if(v->parent == nullptr)
+        {
+            cout << "WARNING QUEUE INSERT" << endl;
+        }
+
         updateKey(v); 
         motionHash_[v] = q_.push(v);
     }
@@ -475,6 +554,12 @@ namespace rrt
     */
     void RRTx::queueUpdate(Motion *v)
     {
+
+        if(v->parent == nullptr)
+        {
+            cout << "WARNING QUEUE UPDATE" << endl;
+        }
+
         updateKey(v);
         q_.update(motionHash_[v]);
     }
@@ -517,7 +602,8 @@ namespace rrt
         int    n       = nn_->size() + 1;
         // double term1   = (y_ / M_PI) * (log(n) / n);
         // radius_  = min( pow(term1, 0.5), maxDist_);
-        radius_ = y_ * std::pow(log(n) / n, 1 / si_->getStateDimension());
+        // radius_ = y_ * std::pow(log(n) / n, 1 / si_->getStateDimension());
+        radius_ = y_ * std::pow(log(n) / n, 1 / 2.0);
         radius_ = min(radius_, maxDist_);
         //cout << "new radius_: " << radius_ << endl;
     }
@@ -561,6 +647,12 @@ namespace rrt
     */ 
     void RRTx::makeParentOf(Motion *parent, Motion *v)
     {
+
+        // if (!opt_->isCostBetterThan(getCost(v,parent), opt_->infiniteCost()))
+        // {
+        //     cout << "WARING path has inf cost" << endl;
+        // }
+
         if(v->parent)
         {
             auto& children = v->parent->children;
@@ -579,7 +671,7 @@ namespace rrt
     /**
      * Update Tree edges, and solution path
      */
-    void RRTx::updateTree(ob::State *center, double radius)
+    ob::PlannerStatus RRTx::updateTree(ob::State *center, double radius)
     {
         // ros::Time time = ros::Time::now();
 
@@ -595,7 +687,8 @@ namespace rrt
         findNewObstacles(motions);
         //ROS_INFO("end add obstacle");
         propogateDescendants();
-        //verrifyQueue(vbot_->parent);
+        // vbot_->g = opt_->infiniteCost();
+        // verrifyQueue(vbot_);
         reduceInconsistency();
         //ROS_INFO("end update");
 
@@ -603,21 +696,12 @@ namespace rrt
         //ROS_INFO("update Tree took %.3fsec", d.toSec());
         delete m;
 
-        vector<Motion *> mpath;
-        // follow parent Motion
-        for(Motion *v = vbot_; v != nullptr; v = v->parent)
-            mpath.push_back(v);
-
-        // fill path information
-        std::shared_ptr<geometric::PathGeometric> path( new geometric::PathGeometric(si_) );
-        for(auto v : mpath)
-            path->append(v->state);
-        
-        PlannerSolution solution(path);
-        pdef_->clearSolutionPaths();
-        pdef_->addSolutionPath(solution);
+        computePath();
 
         cout << "q " << q_.size() << endl;
+
+        bool solved = !opt_->isCostEquivalentTo(vbot_->lmc, opt_->infiniteCost());
+        return PlannerStatus(solved, false);
 
     }
 
@@ -673,10 +757,10 @@ namespace rrt
         for(auto v : orphans)
         {
             vector<Motion *> nbhs = v->outNbhs();
-            nbhs.push_back(v);
+            nbhs.push_back(v->parent);
             for(auto n : nbhs)
             {
-                if(orphanHash[n]) continue;
+                if(orphanHash.find(n) != orphanHash.end()) continue;
 
                 n->g = opt_->infiniteCost();
                 verrifyQueue(n);
@@ -708,17 +792,21 @@ namespace rrt
      */
     void RRTx::findNewObstacles(vector<Motion *> &motions)
     {   
+        int counter = 0;
         for(auto v : motions)
         {
             auto nbhs = v->outNbhs();
             for(auto u : nbhs)
             {
-                if(opt_->isCostEquivalentTo(getCost(v, u), opt_->infiniteCost())) 
+                Cost c = getCost(v, u);
+                if(opt_->isCostEquivalentTo(c, opt_->infiniteCost()) && orphanHash.find(v) != orphanHash.end()) 
                     continue;
 
                 if(!si_->checkMotion(v->state, u->state))
                 {
+                    counter++;
                     costs_[make_pair(v, u)] = opt_->infiniteCost();
+                    costs_[make_pair(u, v)] = opt_->infiniteCost();
 
                     if(v->parent == u)
                     {
@@ -727,6 +815,8 @@ namespace rrt
                 }
             }
         }
+
+        cout << "edge collision " << counter << endl;
     }
 
     /**

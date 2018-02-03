@@ -88,19 +88,65 @@ namespace rrt
     {
     public:
     
-        CostmapValidityChecker(ompl::base::SpaceInformation *si, costmap_2d::Costmap2D *costmap) : StateValidityChecker(si), costmap_(costmap)
+        CostmapValidityChecker(ompl::base::SpaceInformation *si, costmap_2d::Costmap2D *costmap, double car_lenght, double car_width) : StateValidityChecker(si), costmap_(costmap)
         {
+        }
+
+
+        bool pos_valid(double x, double y) const
+        {
+            auto s = si_->allocState();
+            setX(s, x);
+            setY(s, y);
+            
+            bool result = state_cost(s, costmap_).value() < 100;
+
+            si_->freeState(s);
+            return result;
         }
     
         virtual bool isValid(const ompl::base::State *state) const
         {
             double cost = state_cost(state, costmap_).value();
             // std::cout << "cost " << cost << std::endl;
-            return cost < 100;
+
+            //  State cannot be valid
+            if (cost > 253)
+            {
+                return false;
+            }
+
+            //  Need to test collision with car dimension
+            if (cost > 0)
+            {
+                double yaw = getYaw(state);
+                double x = getX(state);
+                double y = getY(state);
+                
+                //  Test collision back 
+                double s_x = x + cos(yaw) * (car_length_ / 2);
+                double s_y = y + cos(yaw) * (car_length_ / 2);
+
+                bool back = pos_valid(s_x, s_y);
+
+                //  Test collision top
+                s_x += car_length_;
+                s_y += car_length_;
+
+                bool top = pos_valid(s_x, s_y);
+
+                return back && top;
+            }
+
+            //  Cost 0 state is valid
+            return true;
         }
+
     
     private:
         costmap_2d::Costmap2D *costmap_;
+        double car_length_;
+        double car_width_;
     
     };
 

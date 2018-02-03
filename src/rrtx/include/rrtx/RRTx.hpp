@@ -68,7 +68,7 @@ namespace rrt
                 sample_dist_ = sample_dist;
             }
 
-            void updateTree(ob::State *center, double radius); //
+            ob::PlannerStatus updateTree(ob::State *center, double radius); //
             
             // void                updateRobot (geometry_msgs::Pose robot);
 
@@ -104,7 +104,7 @@ namespace rrt
 
             void grow(); //
 
-            ob::Cost getCost(Motion *a, Motion *b); //
+            ob::Cost getCost(Motion *a, Motion *b) const; //
 
             //  Priority Queue related functions
             void queueInsert(Motion *v); //
@@ -130,6 +130,8 @@ namespace rrt
             void verrifyOrphan(Motion *v); //
 
             void insertOrphanChildren(Motion *v); //
+
+            void computePath();
 
             // OMPL NearestNeigbhors interface for KNN and distance search
             std::shared_ptr<ompl::NearestNeighbors<Motion *> > nn_;
