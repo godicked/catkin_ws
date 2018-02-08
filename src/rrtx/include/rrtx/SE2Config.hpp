@@ -61,6 +61,11 @@ namespace rrt
     {
         s->as<ompl::base::SE2StateSpace::StateType>()->setY(y);
     }
+
+    void setYaw(ompl::base::State *s, double yaw)
+    {
+        s->as<ompl::base::SE2StateSpace::StateType>()->setYaw(yaw);
+    }
     
     class SE2Costmap : public ompl::base::SE2StateSpace
     {

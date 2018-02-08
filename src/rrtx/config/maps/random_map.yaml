@@ -1,4 +1,4 @@
-image: tunnel.png
+image: map2.png
 resolution: 0.03
 origin: [ 0, 0, 0.0]
 occupied_thresh: 0.7

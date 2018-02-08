@@ -180,28 +180,28 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
     goal_ = ss->allocState()->as<SE2State>();
     start_ = ss->allocState()->as<SE2State>();
 
-    si.reset( new SpaceInformation(ss) );
-    // MotionValidatorPtr mv( new ReedsSheppCostmapMotionValidator(si.get()) );
-    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), costmap_, 0.3, 0.15) );
-    OptimizationObjectivePtr oop( new ReedsSheppOptimizationObjective(si, costmap_) );
-    pdp_.reset( new ProblemDefinition(si) );
-    // MotionValidatorPtr mvp( new ReedsSheppMotionValidator(si.get()));
+    si_.reset( new SpaceInformation(ss) );
+    // MotionValidatorPtr mv( new ReedsSheppCostmapMotionValidator(si_.get()) );
+    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si_.get(), costmap_, 0.3, 0.15) );
+    OptimizationObjectivePtr oop( new ReedsSheppOptimizationObjective(si_, costmap_) );
+    pdp_.reset( new ProblemDefinition(si_) );
+    // MotionValidatorPtr mvp( new ReedsSheppMotionValidator(si_.get()));
 
     pdp_->setOptimizationObjective( oop );
-    si->setStateValidityChecker( svcp );
-    // si->setMotionValidator(mv);
-    // si->setStateValidityCheckingResolution(0.9);
+    si_->setStateValidityChecker( svcp );
+    // si_->setMotionValidator(mv);
+    // si_->setStateValidityCheckingResolution(0.9);
     
-    rrtx_.reset( new RRTx(si) );
+    rrtx_.reset( new RRTx(si_) );
 
     rrt_pub.reset( new ReedsSheppPublisher() );
-    rrt_pub->initialize(&n, "map", si);
+    rrt_pub->initialize(&n, "map", si_);
 }
 
 
 bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
 {
-  //ROS_INFO("make plan");
+  ROS_INFO("make plan");
   
   //costmap_converter::PolygonContainerConstPtr polygons = getObstacles(start);
   //publishObstacles(polygons);
@@ -223,6 +223,8 @@ bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geomet
       }
       else
       {
+
+        
         // rrtx_->updateTree(
         //     low_res_costmap.getOriginX(), 
         //     low_res_costmap.getOriginY(),
@@ -230,7 +232,7 @@ bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geomet
         //     low_res_costmap.getSizeInMetersY()
         // );
         // rrtx_->updateRobot(start.pose);
-
+        updatePath();
         fillPath(goal, plan);
       }
       return true;
@@ -268,16 +270,52 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     pdp_->setGoalState(goal_);
 
     rrtx_->setProblemDefinition(pdp_);
-    rrtx_->setRange(2.0);
-    solved_ = rrtx_->solve(10.0);
+    rrtx_->setRange(6.0);
+    rrtx_->clear();
+    solved_ = rrtx_->solve(3.0);
     //activate_static_map(false);
 
     return fillPath(goal, plan);
 }
 
+//  Update the optimal path if collision is detected
+//  In order to save time only edges near collision are tested
+void RRTxPlanner::updatePath()
+{
+
+    ROS_INFO("Update Path");
+
+    if(!solved_)
+    {
+        return;
+    }
+
+    auto path = pdp_->getSolutionPath()->as<ompl::geometric::PathGeometric>();
+    auto states = path->getStates();
+
+    for(int i = 0; i < states.size()-1; i++)
+    {
+        auto v = states[i];
+        auto u = states[i+1];
+        if(!si_->checkMotion(v, u))
+        {
+            auto center = si_->allocState();
+            si_->getStateSpace()->interpolate(v, u, 0.5, center);
+            rrtx_->updateTree(center, si_->distance(v, u));
+            path = pdp_->getSolutionPath()->as<ompl::geometric::PathGeometric>();
+            states = path->getStates();
+            i = -1;
+            si_->freeState(center);
+        }
+    }
+
+
+
+}
+
 bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
 {
-    PlannerData data(si);
+    PlannerData data(si_);
     rrtx_->getPlannerData(data);
 
     if(solved_)
@@ -288,7 +326,7 @@ bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<g
         cout << "solved " << states.size() << endl;
 
         vector<geometry_msgs::Pose> poses;
-        buildRosPath(si, states, poses);
+        buildRosPath(si_, states, poses);
 
         for(auto pose : poses)
         {

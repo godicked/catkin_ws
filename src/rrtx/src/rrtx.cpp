@@ -164,17 +164,17 @@ namespace rrt
             nn_->list(motions);
             for(auto m : motions)
             {
-                if(m->state && m != goal_)
+                if(m->state && m != goal_ && m != vbot_)
                     si_->freeState(m->state);
                 delete m;
             }
         }
 
-        if(vbot_)
-        {
-            delete vbot_;
-            vbot_ = nullptr;
-        }
+        // if(vbot_)
+        // {
+        //     delete vbot_;
+        //     vbot_ = nullptr;
+        // }
 
         iteration_ = 0;
         nn_->clear();
@@ -245,7 +245,7 @@ namespace rrt
 
         }
         
-        if(v->parent == nullptr)
+        if(v->parent == nullptr && v != vbot_)
         {
             si_->freeState(v->state);
             delete v;
@@ -373,11 +373,6 @@ namespace rrt
 
             //Take first Motion from queue and remove it
             Motion *v = queuePop();
-
-            if(v->parent == nullptr)
-            {
-                cout << "WARNING REDUCE" << endl;
-            }
             
             auto cost = opt_->combineCosts(v->lmc, epsilon);
             if(opt_->isCostBetterThan(cost, v->g))
@@ -469,6 +464,8 @@ namespace rrt
     */
     void RRTx::saturate(Motion *v, Motion *u)
     {
+        if(v == vbot_) return;
+
         double dist = distance(v, u);
         if(dist > maxDist_)
         {
@@ -510,10 +507,6 @@ namespace rrt
     {
         vector<Motion *> exist;
         // add start Motion if v is near. vbot_ is not stored in the NearestNeigbhors datastructure
-        if(distance(v, vbot_) <= radius_)
-        {
-            motions.push_back(vbot_);
-        }
 
         for(auto u : motions)
         {
@@ -531,12 +524,6 @@ namespace rrt
     */
 	void RRTx::queueInsert(Motion *v)
     {
-
-        if(v->parent == nullptr)
-        {
-            cout << "WARNING QUEUE INSERT" << endl;
-        }
-
         updateKey(v); 
         motionHash_[v] = q_.push(v);
     }
@@ -554,12 +541,6 @@ namespace rrt
     */
     void RRTx::queueUpdate(Motion *v)
     {
-
-        if(v->parent == nullptr)
-        {
-            cout << "WARNING QUEUE UPDATE" << endl;
-        }
-
         updateKey(v);
         q_.update(motionHash_[v]);
     }
@@ -617,6 +598,13 @@ namespace rrt
         motion->state = si_->allocState();
         motion->lmc = opt_->infiniteCost();
         motion->g = opt_->infiniteCost();
+
+        std::uniform_int_distribution<int> goal_uni(0, 10); // guaranteed unbiased
+        auto random = goal_uni(rng);
+        if(vbot_->parent == nullptr && random < 1)
+        {
+            return vbot_;
+        }
 
         if(!path_sample_)
         {
@@ -681,14 +669,14 @@ namespace rrt
         nn_->nearestR(m, radius + maxDist_, motions);
         cout << "update motions " << motions.size() << endl;
         //ROS_INFO("start update tree");
-        findFreeMotions(motions);
-        reduceInconsistency();
+        // findFreeMotions(motions);
+        // reduceInconsistency();
 
         findNewObstacles(motions);
         //ROS_INFO("end add obstacle");
         propogateDescendants();
         // vbot_->g = opt_->infiniteCost();
-        // verrifyQueue(vbot_);
+        verrifyQueue(vbot_);
         reduceInconsistency();
         //ROS_INFO("end update");
 

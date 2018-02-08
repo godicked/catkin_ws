@@ -6,8 +6,11 @@ from nav_msgs.msg import Path
 from fub_trajectory_msgs.msg import Trajectory, TrajectoryPoint
 from geometry_msgs.msg import Twist
 
+
 car_speed = 1.0 # m/s
 car_acceleration = 1.0 # m/s2
+
+path_pub = None
 
 
 def distance(p1, p2):
@@ -33,6 +36,7 @@ def convert_to_fub_trajectory(path, traj):
         point.pose = p2.pose
         point.velocity.linear.x = car_speed
         point.time_from_start = dist / car_speed
+        point.acceleration.linear.x = 0
 
         traj.trajectory.append(point)
 
@@ -46,16 +50,17 @@ def path_callback(path):
 
     (plan, dist) = convert_to_fub_trajectory(path.poses, plan)
 
-    print len(plan.trajectory)
-    print dist
+    print 'send path'
+    path_pub.publish(plan)
 
 
 if __name__ == '__main__': 
   try:
     
     rospy.init_node('fub_plan')
-    path_topic = '/rrtx_node/smooth_path'
+    path_topic = '/move_base/RRTxPlanner/smooth_path'
     rospy.Subscriber(path_topic, Path, path_callback, queue_size=1)
+    path_pub = rospy.Publisher('/model_car/trajectory', Trajectory, queue_size=10)
 
     rospy.spin()
     

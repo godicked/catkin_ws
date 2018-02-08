@@ -32,11 +32,11 @@
     <rosparam file="$(find planner_simulation)/cfg/costmap_common_params.yaml" command="load" ns="local_costmap" />
     <rosparam file="$(find planner_simulation)/cfg/local_costmap_params.yaml" command="load" />
     <rosparam file="$(find planner_simulation)/cfg/global_costmap_params.yaml" command="load" />
-    <!--<param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>-->
-    <!--<param name="base_global_planner" value="global_planner/GlobalPlanner"/>-->
+    <!-- <param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/> -->
+    <!-- <param name="base_global_planner" value="global_planner/GlobalPlanner"/> -->
     <param name="base_global_planner" value="rrt/RRTxPlanner"/>
-    <param name="controller_frequency" value="5.0" />
-    <!--<param name="planner_frequency" value="3.0" />-->
+    <param name="controller_frequency" value="2.0" />
+    <param name="planner_frequency" value="5.0" />
     <rosparam file="$(find planner_simulation)/cfg/base_local_planner_params.yaml" command="load" />
   </node>
 

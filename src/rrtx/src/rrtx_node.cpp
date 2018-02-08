@@ -138,7 +138,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     }
     else
     {
-        // PLANNER->clear();
+        PLANNER->clear();
         pdp->clearSolutionPaths();
         PLANNER->setProblemDefinition(pdp);
         // PLANNER->setRange(5);
@@ -152,8 +152,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     ros::Duration d;
     bool solved = false;
 
-    if(test == 0)
-    {
+
     
     if(limitTime)
     {
@@ -168,29 +167,47 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     ROS_INFO("solve took %.2f seconds", d.toSec());
     ROS_INFO("%d iterations", PLANNER->numIterations());
     // cout << "vertices : " << rrts->numVertices() << endl;
-    }
 
     if(test > 0)
     {
-        for(int x = 0; x < 50; x++)
-        {
-            for(int y = 0; y < 100; y++)
-            {
-                cost->setCost(150+x, 90+y, 254);
-            }
-        }
-        costmap->updateMap();
+        // for(int x = 0; x < 50; x++)
+        // {
+        //     for(int y = 0; y < 100; y++)
+        //     {
+        //         cost->setCost(150+x, 90+y, 254);
+        //     }
+        // }
+        // costmap->updateMap();
     
-        auto center = si->allocState()->as<RState>();
-        double wx, wy;
-        cost->mapToWorld(175, 130, wx, wy);
-        center->setXY(wx, wy);
+        // auto center = si->allocState()->as<RState>();
+        // double wx, wy;
+        // cost->mapToWorld(175, 130, wx, wy);
+        // center->setXY(wx, wy);
     
-        t = ros::Time::now();
-        solved = rrtx->updateTree(center, 10.0);
-        d = ros::Time::now() - t;
+        // t = ros::Time::now();
+        // // solved = rrtx->updateTree(center, 2.0);
+        // // d = ros::Time::now() - t;
+
+        // auto path = pdp->getSolutionPath()->as<PathGeometric>();
+        // auto states = path->getStates();
+        // cout << "before" << endl;
+        // int size = states.size();
     
-        ROS_INFO("update took %.2f seconds", d.toSec());
+        // for(int i = 0; i < size-1; i++)
+        // {
+        //     auto v = states[i];
+        //     auto u = states[i+1];
+        //     if(!si->checkMotion(v, u))
+        //     {
+        //         ROS_WARN("obstacle found i: %d",i);
+        //         auto center = si->allocState()->as<RState>();
+        //         si->getStateSpace()->interpolate(v, u, 0.5, center);
+        //         solved = rrtx->updateTree(center, si->distance(v, u));
+        //         break;
+        //     }
+        // }
+        // d = ros::Time::now() - t;
+        // ROS_INFO("update took %.2f seconds", d.toSec());
         test++;
 
     }
@@ -208,10 +225,10 @@ void goalCallback(geometry_msgs::PoseStamped goal)
         vector<geometry_msgs::Pose> poses;
         buildRosPath(si, states, poses);
 
-        // vector<ompl::base::State *> old_path;
-        // poses_to_states(si, poses, old_path);
+        vector<ompl::base::State *> old_path;
+        poses_to_states(si, poses, old_path);
         test++;
-        // PLANNER->as<RRTx>()->setSearchPath(old_path, 1);
+        PLANNER->as<RRTx>()->setSearchPath(old_path, 1);
 
         std::vector<geometry_msgs::PoseStamped> plan;
         for(auto pose : poses)

@@ -49,6 +49,7 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
     bool isAtGoal(const geometry_msgs::PoseStamped &robot);
     void stopPlanner();
     bool goalChanged(const geometry_msgs::PoseStamped &goal);
+    void updatePath();
     // costmap_converter::PolygonContainerConstPtr getObstacles(const geometry_msgs::PoseStamped &start);
     // void publishObstacles(costmap_converter::PolygonContainerConstPtr polygons);
     
@@ -76,7 +77,7 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
     std::vector<geometry_msgs::PoseStamped> last_plan;
 
     ompl::base::ProblemDefinitionPtr pdp_;
-    ompl::base::SpaceInformationPtr si;
+    ompl::base::SpaceInformationPtr si_;
 
     SE2State *start_;
     SE2State *goal_;

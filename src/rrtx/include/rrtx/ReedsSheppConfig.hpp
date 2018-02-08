@@ -18,6 +18,8 @@
 
 #include <rrtx/RRTxStruct.hpp>
 
+#include <tf/tf.h>
+
 namespace rrt
 {
     
@@ -121,10 +123,13 @@ void buildRosPath(ompl::base::SpaceInformationPtr si, std::vector<ompl::base::St
         p.position.y = getY(s);
         p.position.z = 0.5;
 
-        p.orientation.x = 0;
-        p.orientation.y = 0;
-        p.orientation.z = 0;
-        p.orientation.w = 1;
+        double yaw = getYaw(s);
+        auto q = tf::createQuaternionFromRPY(0, 0, yaw);
+
+        p.orientation.x = q[0];
+        p.orientation.y = q[1];
+        p.orientation.z = q[2];
+        p.orientation.w = q[3];
 
         poses.push_back(p);
         
@@ -144,6 +149,11 @@ void poses_to_states(ompl::base::SpaceInformationPtr si, std::vector<geometry_ms
 
         setX(state, pose.position.x);
         setY(state, pose.position.y);
+
+        tf::Pose tfp;
+        tf::poseMsgToTF(pose, tfp);
+        double yaw = tf::getYaw(tfp.getRotation());
+        setYaw(state, yaw);
 
         states.push_back(state);
     }
