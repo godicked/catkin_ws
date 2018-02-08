@@ -35,7 +35,7 @@ def convert_to_fub_trajectory(path, traj):
         point = TrajectoryPoint()
         point.pose = p2.pose
         point.velocity.linear.x = car_speed
-        point.time_from_start = dist / car_speed
+        point.time_from_start = rospy.Duration(dist / car_speed)
         point.acceleration.linear.x = 0
 
         traj.trajectory.append(point)
@@ -47,6 +47,7 @@ def path_callback(path):
     plan = Trajectory()
     plan.header.frame_id = "map"
     plan.child_frame_id = "map"
+    plan.header.stamp = rospy.Time.now()
 
     (plan, dist) = convert_to_fub_trajectory(path.poses, plan)
 
