@@ -63,11 +63,11 @@ class ImageHandler:
         # self.odom.child_frame_id = "/base_link"
         self.odom_pub.publish(self.odom)
 
-        br.sendTransform( (pos.x, pos.y, 0),
-                      [q.x, q.y, q.z, q.w],
-                      data.header.stamp,
-                      "/base_link",
-                      "/odom")
+        # br.sendTransform( (pos.x, pos.y, 0),
+        #               [q.x, q.y, q.z, q.w],
+        #               data.header.stamp,
+        #               "/base_link",
+        #               "/odom")
 
         print('%-30s angle: %6.1f img_age: %5.3f calc: %5.3f' %
               (xy, np.rad2deg(angle), to_secs(t_start - data.header.stamp), to_secs(rospy.Time.now() - t_start)))
