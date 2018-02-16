@@ -2,16 +2,16 @@ global_costmap:
     global_frame: map
     robot_base_frame: base_link
     
-    obstacle_range: 4.0
-    raytrace_range: 4.0
+    obstacle_range: 8.0
+    raytrace_range: 8.0
 
     static_map: true
-    update_frequency: 2.0
-    publish_frequency: 2.0
+    update_frequency: 1.0
+    publish_frequency: 1.0
     
     footprint: [[0.15, 0.1], [0.15, -0.1], [-0.15, -0.1], [-0.15, 0.1]]
     #robot_radius: ir_of_robot
-    inflation_radius: 0.05
+    # inflation_radius: 0.05
 
     plugins: 
         - {name: static_map,       type: "costmap_2d::StaticLayer"}

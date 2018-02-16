@@ -7,7 +7,7 @@ from fub_trajectory_msgs.msg import Trajectory, TrajectoryPoint
 from geometry_msgs.msg import Twist
 
 
-car_speed = 1.0 # m/s
+car_speed = 0.5 # m/s
 car_acceleration = 1.0 # m/s2
 
 path_pub = None
@@ -23,7 +23,7 @@ def convert_to_fub_trajectory(path, traj):
 
     dist = 0
 
-    step_size = 4
+    step_size = 2
 
     for i in range(0, len(path)-step_size, step_size):
         p1 = path[i]
@@ -34,6 +34,11 @@ def convert_to_fub_trajectory(path, traj):
 
         point = TrajectoryPoint()
         point.pose = p2.pose
+        point.pose.position.z = 0
+
+        point.pose.position.x = dist
+        point.pose.position.y = 0
+
         point.velocity.linear.x = car_speed
         point.time_from_start = rospy.Duration(dist / car_speed)
         point.acceleration.linear.x = 0
@@ -45,8 +50,8 @@ def convert_to_fub_trajectory(path, traj):
 
 def path_callback(path):
     plan = Trajectory()
-    plan.header.frame_id = "map"
-    plan.child_frame_id = "map"
+    plan.header.frame_id = "/odom"
+    plan.child_frame_id = "/base_link"
     plan.header.stamp = rospy.Time.now()
 
     (plan, dist) = convert_to_fub_trajectory(path.poses, plan)

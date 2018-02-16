@@ -6,10 +6,11 @@
   <node pkg="map_server" type="map_server" name="map_server" args="$(find planner)/config/map.yaml"></node>
   <!--<node pkg="amcl" type="amcl" name="amcl"> </node>-->
 
-  <include file="$(find odometry)/launch/odometry.launch" />
+  <!-- <include file="$(find odometry)/launch/odometry.launch" /> -->
    
-  <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map odom 100" />
-    <node pkg="tf" type="static_transform_publisher" name="laser_tf_broadcaster" args="0 0 0 0 0 1 0 base_link laser 100" />
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map odom 100" /> -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="odom_tf_broadcaster" args="0 0 0 0 0 0 1 odom base_link 100" /> -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="laser_tf_broadcaster" args="0 0 0 0 0 1 0 base_link laser 100" /> -->
 
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
     <!--<remap from="cmd_vel" to="motor_control/twist" />-->
@@ -20,9 +21,13 @@
     <!--<param name="base_global_planner" value="RAstar_planner/RAstarPlannerROS"/>-->
     <param name="base_global_planner" value="rrt/RRTxPlanner"/>
     <!--<param name="base_gloabal_planner" value="navfn/NavfnROS" />-->
-    <param name="controller_frequency" value="2.0" />
+    <param name="controller_frequency" value="1" />
     <param name="planner_frequency" value="0.0" />
     <rosparam file="$(find planner)/config/base_local_planner_params.yaml" command="load" />
   </node>
+
+  <!-- <node pkg="ub07" type="visual_gps.py" name="gps"></node> -->
+  <!-- <node pkg="ub07" type="tf_odom.py" name="tf_odom_map"></node> -->
+  <!-- <node pkg="rrtx" type="path_fub_traj_conv.py" name="plan"></node> -->
 
 </launch>
