@@ -333,9 +333,9 @@ def main(img_fname, use_mpl=True, show_cv2=True, block=True):
     print('Position in world coordinates: %s, angle: %6.2f, residual: %s' %
           (xy, np.rad2deg(angle), detector.residual))
 
-    show_image(detector.mask, 'mask', 'gray')
+    # show_image(detector.mask, 'mask', 'gray')
     detector.draw_markers(img)
-    show_image(img, 'cluster midpoints')
+    # show_image(img, 'cluster midpoints')
 
     if use_mpl:
         if detector.centers is not None:

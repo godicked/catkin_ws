@@ -11,6 +11,8 @@
   <!-- <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map odom 100" /> -->
   <!-- <node pkg="tf" type="static_transform_publisher" name="odom_tf_broadcaster" args="0 0 0 0 0 0 1 odom base_link 100" /> -->
   <!-- <node pkg="tf" type="static_transform_publisher" name="laser_tf_broadcaster" args="0 0 0 0 0 1 0 base_link laser 100" /> -->
+  
+  <include file="$(find fub_auto_tf)/launch/tf.launch" />
 
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
     <!--<remap from="cmd_vel" to="motor_control/twist" />-->
@@ -22,7 +24,8 @@
     <param name="base_global_planner" value="rrt/RRTxPlanner"/>
     <!--<param name="base_gloabal_planner" value="navfn/NavfnROS" />-->
     <param name="controller_frequency" value="1" />
-    <param name="planner_frequency" value="0.0" />
+    <param name="planner_frequency" value="0.1" />
+    <remap from="odom" to="visual_gps/odom" />
     <rosparam file="$(find planner)/config/base_local_planner_params.yaml" command="load" />
   </node>
 

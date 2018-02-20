@@ -16,19 +16,27 @@ import math
 
 br = tf.TransformBroadcaster()
 
+
+speed = 0
+
+def odomCb(odom):
+    global speed
+    speed = odom.twist.twist.linear.x
+
 class ImageHandler:
     def __init__(self, img_pub=False):
         if img_pub:
             self.image_pub_marked = rospy.Publisher("/assignment6/image_marked_ang", Image, queue_size=200, latch=True)
         else:
             self.image_pub_marked = None
-        self.odom_pub = rospy.Publisher("/odom", Odometry, queue_size=200)
+        self.odom_pub = rospy.Publisher("/visual_gps/odom", Odometry, queue_size=200)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, self.callback, queue_size=1, buff_size=2**24)
+        self.odom_sub = rospy.Subscriber("/odom", Odometry, odomCb, queue_size=1)
         self.detector = BalloonDetector()
 
         pose_covar = PoseWithCovariance(Pose(Point(0, 0, 0), Quaternion()), None)
-        self.odom = Odometry(Header(frame_id='odom'), 'base_link', pose_covar, None)
+        self.odom = Odometry(Header(frame_id='map'), 'odom', pose_covar, None)
 
     def callback(self, data):
         t_start = rospy.Time.now()
@@ -60,12 +68,13 @@ class ImageHandler:
 
         q = quaternion
 
+        self.odom.twist.twist.linear.x = speed
         # self.odom.child_frame_id = "/base_link"
         self.odom_pub.publish(self.odom)
 
         # br.sendTransform( (pos.x, pos.y, 0),
         #               [q.x, q.y, q.z, q.w],
-        #               data.header.stamp,
+        #               rospy.Time.now(),
         #               "/base_link",
         #               "/odom")
 

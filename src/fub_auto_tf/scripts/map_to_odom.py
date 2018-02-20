@@ -3,6 +3,7 @@ import rospy
 import sys
 from nav_msgs.msg import Odometry
 import tf
+import math
 
 
 # last gps position / prediction
@@ -12,45 +13,48 @@ last_odom = None
 #	x, y, yaw
 offset = [0, 0, 0]
 
+init = False
+
 br = tf.TransformBroadcaster()
 
 #	-pi to pi
 def normalizeAngle(angle):
 	a = angle
-	if(a > math.pi):
+	while(a > math.pi):
 		a -= math.pi * 2
-	if(a < -math.pi):
+	while(a < -math.pi):
 		a += math.pi * 2
 	return a
 
 #	Offset between two position
 def computeOffset(gps, odom):
 	#	offset on X and Y axis
-	x = odom.pose.pose.position.x - position.pose.pose.position.x
-	y = odom.pose.pose.position.y - position.pose.pose.position.y
+	x = gps.pose.pose.position.x - odom.pose.pose.position.x
+	y = gps.pose.pose.position.y - odom.pose.pose.position.y
 
 	q1 = gps.pose.pose.orientation
 	q2 = odom.pose.pose.orientation
 
 	#	roll, pitch, yaw
-	(r, p, y1) = tf.transformations.euler_from_quaternion([q1.x, q1.y, q1.z, q1.w])
-	(r, p, y2) = tf.transformations.euler_from_quaternion([q2.x, q2.y, q2.z, q2.w])
+	(r, p, gpsYaw) = tf.transformations.euler_from_quaternion([q1.x, q1.y, q1.z, q1.w])
+	(r, p, odomYaw) = tf.transformations.euler_from_quaternion([q2.x, q2.y, q2.z, q2.w])
 
 	#	yaw offset
-	yaw = normalizeAngle(y2 - y1)
+	yaw = normalizeAngle(odomYaw - gpsYaw)
 
-	return [x, y, yaw]
+	return [x, y, 0]
 
 #	Update offset and publish Transform from map to odom.
 def publishTransform():
-	global last_gps, last_odom, offset
+	global last_gps, last_odom, offset, init
 
 	if last_gps != None and last_odom != None:
 		offset = computeOffset(last_gps, last_odom)
+		init = True
 	
 	br.sendTransform( (offset[0], offset[1], 0),
-		tf.transformations.quaternion_from_euler(math.pi, 0, offset[2]),
-		data.header.stamp,
+		tf.transformations.quaternion_from_euler(0, 0, offset[2]),
+		last_odom.header.stamp,
 		"odom",
 		"map")
 
@@ -68,17 +72,14 @@ def odomCallback(odom):
 
 
 def main(args):
-    rospy.init_node('kalman_filter', anonymous=True)
-
-	gps_sub = rospy.Subscriber('/visual_gps', Odometry, gpsCallback, queue_size=10)
-	odom_sub = rospy.Subscriber('/odom', Odometry, odomCallback, queue_size=10)
-
-    try:
-        rospy.spin()
-    except KeyboardInterrupt:
-        print("Shutting down")
-    cv2.destroyAllWindows()
-
+	rospy.init_node('map_to_odom_tf', anonymous=True)
+	sub = rospy.Subscriber('/visual_gps/odom', Odometry, gpsCallback, queue_size=1)
+	odom_sub = rospy.Subscriber('/odom', Odometry, odomCallback, queue_size=1)
+	try:
+		rospy.spin()
+	except KeyboardInterrupt:
+		print("Shutting down")
+		cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     main(sys.argv)
