@@ -66,7 +66,7 @@ namespace rrt
         // As defined in RRT* Y >= 2(1 + 1/dim)^(1/dim) * u(XFree)
         // u = volume, XFree = free space. y > Y since we use total volume of map
         // const double dim = si_->getStateDimension();
-        const double dim = si_->getStateDimension();
+        const double dim = si_->getStateDimension() + 0.0;
         const double free = si_->getSpaceMeasure();
 
         y_ = std::pow(2*(1 + 1 / dim), 1 / dim) * std::pow(free / unitNBallMeasure(dim), 1 / dim);
@@ -584,7 +584,7 @@ namespace rrt
         int    n       = nn_->size() + 1;
         // double term1   = (y_ / M_PI) * (log(n) / n);
         // radius_  = min( pow(term1, 0.5), maxDist_);
-        radius_ = y_ * std::pow(log(n) / n, 1 / si_->getStateDimension());
+        radius_ = y_ * std::pow(log(n) / n, 1.0 / si_->getStateDimension());
         // radius_ = y_ * std::pow(log(n) / n, 1 / 2.0);
         radius_ = min(radius_, maxDist_);
         //cout << "new radius_: " << radius_ << endl;
