@@ -2,7 +2,7 @@
   <master auto="start"/>
   
   <node pkg="tf" type="static_transform_publisher" name="base_to_laser_tf" args="0 0 0 0 0 1 0 base_link laser 100" />
-  <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom_tf" args="0 0 0 0 0 0 1 map odom 100" /> -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom_tf" args="0 -0.175 0 0 0 0 1 map odom 100" /> -->
   
   <node pkg="fub_auto_tf" type="map_to_odom.py" name="map_to_odom_tf" />
 

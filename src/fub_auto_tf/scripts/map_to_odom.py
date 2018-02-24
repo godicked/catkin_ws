@@ -29,6 +29,11 @@ def normalizeAngle(angle):
 #	Offset between two position
 def computeOffset(gps, odom):
 	#	offset on X and Y axis
+
+	print 'time o', odom.header.stamp.secs
+	print 'time g', gps.header.stamp.secs
+
+
 	x = gps.pose.pose.position.x - odom.pose.pose.position.x
 	y = gps.pose.pose.position.y - odom.pose.pose.position.y
 
@@ -39,24 +44,42 @@ def computeOffset(gps, odom):
 	(r, p, gpsYaw) = tf.transformations.euler_from_quaternion([q1.x, q1.y, q1.z, q1.w])
 	(r, p, odomYaw) = tf.transformations.euler_from_quaternion([q2.x, q2.y, q2.z, q2.w])
 
+	print 'Yaw:', math.degrees(gpsYaw), '(GPS)'
+	print 'Yaw:', math.degrees(odomYaw), '(ODOM)'
+
 	#	yaw offset
 	yaw = normalizeAngle(odomYaw - gpsYaw)
 
-	return [x, y, 0]
+	print 'Diff:', math.degrees(yaw)
+
+	return [x, y, yaw]
+	# return [0, 0, 0]
+
 
 #	Update offset and publish Transform from map to odom.
 def publishTransform():
-	global last_gps, last_odom, offset, init
+	global last_gps, last_odom, offset, init, yaw
 
 	if last_gps != None and last_odom != None:
 		offset = computeOffset(last_gps, last_odom)
-		init = True
+		# print 'offset', offset
+		# if init == False:
+		# 	yaw = offset[2]
+		# 	init = True
+		# offset[2] = yaw
 	
 	br.sendTransform( (offset[0], offset[1], 0),
-		tf.transformations.quaternion_from_euler(0, 0, offset[2]),
+		tf.transformations.quaternion_from_euler(0, 0, 0, axes='rzyx'),
 		last_odom.header.stamp,
 		"odom",
+		"podom")
+
+	br.sendTransform( (0, 0, 0),
+		tf.transformations.quaternion_from_euler(-offset[2], 0, 0, axes='rzyx'),
+		last_odom.header.stamp,
+		"podom",
 		"map")
+
 
 
 def gpsCallback(odom):
