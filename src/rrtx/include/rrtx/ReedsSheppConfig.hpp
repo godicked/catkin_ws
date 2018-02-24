@@ -119,10 +119,10 @@ public:
         return 2;
     }
 
-    double getMeasure() const override
-    {
-        return ob::ReedsSheppStateSpace::getMeasure();
-    }
+    // double getMeasure() const override
+    // {
+    //     return ob::ReedsSheppStateSpace::getMeasure();
+    // }
 
     ob::StateSamplerPtr allocStateSampler() const override
     {
