@@ -10,10 +10,12 @@
 #include <ompl/base/Cost.h>
 
 
-namespace ob = ompl::base;
+//namespace ob = ompl::base;
 
 namespace rrt
 {
+
+namespace ob = ompl::base;
 
 struct NodeKey
 {

@@ -223,12 +223,14 @@ void goalCallback(geometry_msgs::PoseStamped goal)
         cout << "solved " << states.size() << endl;
 
         vector<geometry_msgs::Pose> poses;
-        buildRosPath(si, states, poses);
+        states_to_poses(si, states, poses);
 
         vector<ompl::base::State *> old_path;
         poses_to_states(si, poses, old_path);
         test++;
-        PLANNER->as<RRTx>()->setSearchPath(old_path, 1);
+        // PLANNER->as<RRTx>()->setSearchPath(old_path, 1);
+        // ss.reset( new ReedsSheppCostmap(cost, turningRadius) );
+        ss->as<ReedsSheppCostmap>()->setRoad(old_path, 1);
 
         std::vector<geometry_msgs::PoseStamped> plan;
         for(auto pose : poses)
@@ -260,12 +262,12 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 
 void rrtxSetup()
 {
-    StateSpacePtr ss;
     OptimizationObjectivePtr oop;
 
     if(constraint)
     {
         ss.reset( new ReedsSheppCostmap(cost, turningRadius) );
+        // ss->as<ReedsSheppCostmap>()->setRoad(vector<State *>(1), 1);
     }
     else
     {

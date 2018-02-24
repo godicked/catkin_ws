@@ -5,8 +5,6 @@
 
 #include <boost/heap/fibonacci_heap.hpp>
 #include <rrtx/RRTxStruct.hpp>
-
-// #include <ompl/geometric/planners/rrt/RRTstar.h>
 #include <ompl/datastructures/NearestNeighborsGNAT.h> 
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/OptimizationObjective.h>
@@ -37,35 +35,35 @@ namespace rrt
     public:
 
             RRTx(ob::SpaceInformationPtr si);
-                                
+            
+            //  Maximum distance between two sampled states
             void setRange(double maxDist);
 
+            //  Default solve with time as termination condition from base class
             using Planner::solve;
+
+            //  RRTx solve function
             virtual ob::PlannerStatus solve(const ob::PlannerTerminationCondition &ptc) override;
 
+            //  Setup called for structure initialisation
             virtual void setup() override;
 
+            //  Clear the Tree for new planning
             virtual void clear() override;
 
+            //  Get the optimal Tree
             virtual void getPlannerData(ob::PlannerData &data) const override;
 
+            //  Actual iterations
             unsigned int numIterations()
             {
                 return iteration_;
             }
 
+            //  Vertices in the Tree
             unsigned int numVertices()
             {
                 return nn_->size();
-            }
-
-            void freeMemory();
-
-            void setSearchPath(std::vector<ompl::base::State *> path, double sample_dist)
-            {
-                path_ = path;
-                path_sample_ = true;
-                sample_dist_ = sample_dist;
             }
 
             ob::PlannerStatus updateTree(ob::State *center, double radius); //
@@ -73,6 +71,7 @@ namespace rrt
             // void                updateRobot (geometry_msgs::Pose robot);
 
     private:
+            void freeMemory();
 
             double distance(Motion *v, Motion *u);//
 
@@ -107,29 +106,29 @@ namespace rrt
             ob::Cost getCost(Motion *a, Motion *b) const; //
 
             //  Priority Queue related functions
-            void queueInsert(Motion *v); //
+            void queueInsert(Motion *v); 
 
-            void queueUpdate(Motion *v); //
+            void queueUpdate(Motion *v); 
 
-            void queueRemove(Motion *v); //
+            void queueRemove(Motion *v);
 
-            bool queueContains(Motion *v); //
+            bool queueContains(Motion *v);
 
-            void updateKey(Motion *v); //
+            void updateKey(Motion *v);
 
-            Motion *queuePop(); //
+            Motion *queuePop(); 
 
             // Dynamic part of RRTx
 
-            void findNewObstacles(std::vector<Motion *> &motions); //
+            void findNewObstacles(std::vector<Motion *> &motions);
 
-            void findFreeMotions(std::vector<Motion *> &motions); //
+            void findFreeMotions(std::vector<Motion *> &motions);
 
-            void propogateDescendants(); //
+            void propogateDescendants();
 
-            void verrifyOrphan(Motion *v); //
+            void verrifyOrphan(Motion *v); 
 
-            void insertOrphanChildren(Motion *v); //
+            void insertOrphanChildren(Motion *v);
 
             void computePath();
 
@@ -151,7 +150,6 @@ namespace rrt
             double maxDist_ = 4.55;
             bool symmetric_;
 
-
             ob::Cost epsilon = ob::Cost(0.05);
 
             double  radius_;
@@ -165,9 +163,6 @@ namespace rrt
             ob::StateSamplerPtr sampler_;
 
             std::vector<ompl::base::State *> path_;
-            bool path_sample_ = false;
-            double sample_dist_ = 0;
-
     };
 
 };

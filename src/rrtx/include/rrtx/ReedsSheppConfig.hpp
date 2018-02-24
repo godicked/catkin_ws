@@ -14,11 +14,16 @@
 #include <ompl/base/OptimizationObjective.h>
 #include <ompl/base/spaces/RealVectorBounds.h>
 
-#include <rrtx/SE2Config.hpp>
+#include "Utils.hpp"
+#include "SE2Config.hpp"
+#include "RRTxStruct.hpp"
+#include "RoadSampler.hpp"
 
-#include <rrtx/RRTxStruct.hpp>
+#include <vector>
 
 #include <tf/tf.h>
+
+namespace ob = ompl::base;
 
 namespace rrt
 {
@@ -55,7 +60,7 @@ public:
             double d = p.length_[i];
             if(d < 0)
             {
-                dist += -2 * d;  
+                dist += -2 * d;
             }
             else
             {
@@ -66,7 +71,7 @@ public:
             if( direction != dir && d != 0)
             {
                 direction = dir;
-            // dist += 50;
+                dist += 10;
             }
 
         }
@@ -80,8 +85,9 @@ public:
 **  extends ReedSheepStateSpace
 **
 **  applys Costmap Boundaries on the StateSpace
+**  The ReedsSheepCostmap accepts a Road as prediction to optimise the sampling process.
 */
-class ReedsSheppCostmap : public ompl::base::ReedsSheppStateSpace
+class ReedsSheppCostmap : public ob::ReedsSheppStateSpace
 {
 public:
     ReedsSheppCostmap(costmap_2d::Costmap2D *costmap, double turningRadius = 1.0) : ReedsSheppStateSpace(turningRadius), costmap_(costmap)
@@ -99,67 +105,48 @@ public:
         setBounds(bd);
     }
 
-private:
+    void setRoad(std::vector<ob::State *> road, double width)
+    {
+        // std::cout << "road: " << road_.size() << std::endl;
+        road_ = road;
+        width_ = width;
+        sample_road_ = true;
+    }
+
+    // We do not consider the yaw as dimension.
+    unsigned int getDimension() const override
+    {
+        return 2;
+    }
+
+    double getMeasure() const override
+    {
+        return ob::ReedsSheppStateSpace::getMeasure();
+    }
+
+    ob::StateSamplerPtr allocStateSampler() const override
+    {
+        auto ss(std::make_shared<RoadSampler>(this));
+        if (weightSum_ < std::numeric_limits<double>::epsilon())
+            for (unsigned int i = 0; i < componentCount_; ++i)
+                ss->addSampler(components_[i]->allocStateSampler(), 1.0);
+        else
+            for (unsigned int i = 0; i < componentCount_; ++i)
+                ss->addSampler(components_[i]->allocStateSampler(), weights_[i] / weightSum_);
+
+        if(sample_road_)
+        {
+            ss->setRoad(road_, width_);
+        }
+        return ss;
+    }
+
+protected:
     costmap_2d::Costmap2D *costmap_;
+    std::vector<ob::State *> road_;
+    bool sample_road_ = false;
+    double width_;
 };
-
-
-void buildRosPath(ompl::base::SpaceInformationPtr si, std::vector<ompl::base::State *> &path, std::vector<geometry_msgs::Pose> &poses)
-{
-    std::vector<ompl::base::State *> states;
-
-    int size = path.size() -1;
-    for(int i = 0; i < size; i++)
-    {
-        std::vector<ompl::base::State *> sts;
-        si->getMotionStates(path[i], path[i+1], sts, 10, true, true);
-        states.insert(states.end(), sts.begin(), sts.end());
-    }
-
-    for(auto s : states)
-    {
-        geometry_msgs::Pose p;
-        p.position.x = getX(s);
-        p.position.y = getY(s);
-        p.position.z = 0.5;
-
-        double yaw = getYaw(s);
-        auto q = tf::createQuaternionFromRPY(0, 0, yaw);
-
-        p.orientation.x = q[0];
-        p.orientation.y = q[1];
-        p.orientation.z = q[2];
-        p.orientation.w = q[3];
-
-        poses.push_back(p);
-        
-    }
-
-    si->freeStates(states);
-
-}
-
-void poses_to_states(ompl::base::SpaceInformationPtr si, std::vector<geometry_msgs::Pose> &poses, std::vector<ompl::base::State *> &states)
-{
-    int size = poses.size();
-    for(int i = 0; i < size; i++)
-    {
-        auto state = si->allocState();
-        auto pose = poses[i];
-
-        setX(state, pose.position.x);
-        setY(state, pose.position.y);
-
-        tf::Pose tfp;
-        tf::poseMsgToTF(pose, tfp);
-        double yaw = tf::getYaw(tfp.getRotation());
-        setYaw(state, yaw);
-
-        states.push_back(state);
-    }
-}
-
-
 
 
 }; // namespace rrt

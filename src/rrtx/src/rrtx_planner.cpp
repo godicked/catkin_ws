@@ -212,7 +212,7 @@ bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<g
         cout << "solved " << states.size() << endl;
 
         vector<geometry_msgs::Pose> poses;
-        buildRosPath(si_, states, poses);
+        states_to_poses(si_, states, poses);
 
         for(auto pose : poses)
         {

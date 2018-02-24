@@ -13,7 +13,10 @@
 #include <ompl/base/OptimizationObjective.h>
 #include <ompl/base/spaces/RealVectorBounds.h>
 
-#include <rrtx/RRTxStruct.hpp>
+#include "RRTxStruct.hpp"
+#include "Utils.hpp"
+
+using namespace fub::planning;
 
 namespace rrt
 {
@@ -37,35 +40,6 @@ namespace rrt
         return ompl::base::Cost(costmap->getCost(mx ,my));
     }
 
-    double getYaw(const ompl::base::State *s)
-    {
-        return s->as<ompl::base::SE2StateSpace::StateType>()->getYaw();
-    }
-    
-    double getX(const ompl::base::State *s)
-    {
-        return s->as<ompl::base::SE2StateSpace::StateType>()->getX();
-    }
-    
-    double getY(const ompl::base::State *s)
-    {
-        return s->as<ompl::base::SE2StateSpace::StateType>()->getY();
-    }
-    
-    void setX(ompl::base::State *s, double x)
-    {
-        s->as<ompl::base::SE2StateSpace::StateType>()->setX(x);
-    }
-    
-    void setY(ompl::base::State *s, double y)
-    {
-        s->as<ompl::base::SE2StateSpace::StateType>()->setY(y);
-    }
-
-    void setYaw(ompl::base::State *s, double yaw)
-    {
-        s->as<ompl::base::SE2StateSpace::StateType>()->setYaw(yaw);
-    }
     
     class SE2Costmap : public ompl::base::SE2StateSpace
     {
@@ -84,9 +58,6 @@ namespace rrt
     
             setBounds(bd);
         }
-    
-    private:
-        costmap_2d::Costmap2D *costmap_;
     };
     
     class CostmapValidityChecker : public ompl::base::StateValidityChecker

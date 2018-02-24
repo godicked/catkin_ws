@@ -32,7 +32,6 @@ namespace rrt
         nn_->setDistanceFunction([this](const Motion *v, const Motion *u) {
             return si_->distance(v->state, u->state);
         });
-        sampler_ = si_->allocStateSampler();
     }
 
     void RRTx::setup()
@@ -42,11 +41,13 @@ namespace rrt
         // free memory before allocating new space
         clear();
 
+        sampler_ = si_->allocStateSampler();
+
         setup_ = true;
 
         if(!pdef_)
         {
-            cout << "No pdef" << endl;
+            cout << "No problem definition" << endl;
         }
         opt_ = pdef_->getOptimizationObjective();
 
@@ -65,13 +66,13 @@ namespace rrt
         // As defined in RRT* Y >= 2(1 + 1/dim)^(1/dim) * u(XFree)
         // u = volume, XFree = free space. y > Y since we use total volume of map
         // const double dim = si_->getStateDimension();
-        const double dim = 2;
+        const double dim = si_->getStateDimension();
         const double free = si_->getSpaceMeasure();
 
         y_ = std::pow(2*(1 + 1 / dim), 1 / dim) * std::pow(free / unitNBallMeasure(dim), 1 / dim);
 
         symmetric_ = si_->getStateSpace()->hasSymmetricDistance();
-        if(symmetric_) cout << "SYMMETRIC" << endl;
+        // if(symmetric_) cout << "SYMMETRIC" << endl;
     }
 
     PlannerStatus RRTx::solve(const PlannerTerminationCondition &ptc)
@@ -583,8 +584,8 @@ namespace rrt
         int    n       = nn_->size() + 1;
         // double term1   = (y_ / M_PI) * (log(n) / n);
         // radius_  = min( pow(term1, 0.5), maxDist_);
-        // radius_ = y_ * std::pow(log(n) / n, 1 / si_->getStateDimension());
-        radius_ = y_ * std::pow(log(n) / n, 1 / 2.0);
+        radius_ = y_ * std::pow(log(n) / n, 1 / si_->getStateDimension());
+        // radius_ = y_ * std::pow(log(n) / n, 1 / 2.0);
         radius_ = min(radius_, maxDist_);
         //cout << "new radius_: " << radius_ << endl;
     }
@@ -606,23 +607,14 @@ namespace rrt
             return vbot_;
         }
 
-        if(!path_sample_)
-        {
-            sampler_->sampleUniform(motion->state);
-        }
-        else
-        {
-            std::uniform_int_distribution<int> uni(0,path_.size()-1); // guaranteed unbiased
-            auto random_integer = uni(rng);
-            sampler_->sampleUniformNear(motion->state, path_[random_integer], sample_dist_);
-        }
+        sampler_->sampleUniform(motion->state);
 
         return motion;
     }
 
 
     /*
-    **  Define maxDistance between two neighbors
+    **  Set maxDistance between two neighbors
     */
     void RRTx::setRange(double dist)
     {
@@ -635,11 +627,6 @@ namespace rrt
     */ 
     void RRTx::makeParentOf(Motion *parent, Motion *v)
     {
-
-        // if (!opt_->isCostBetterThan(getCost(v,parent), opt_->infiniteCost()))
-        // {
-        //     cout << "WARING path has inf cost" << endl;
-        // }
 
         if(v->parent)
         {
