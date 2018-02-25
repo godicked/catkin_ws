@@ -149,7 +149,7 @@ namespace rrt
             auto s2 = mpath[i+1];
             if (!opt_->isCostBetterThan(getCost(s1,s2), opt_->infiniteCost()))
             {
-                cout << "WARING path has inf cost" << endl;
+                cout << "WARNING path has inf cost" << endl;
             }
         }
     }

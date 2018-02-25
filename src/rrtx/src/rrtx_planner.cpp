@@ -61,7 +61,7 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
 //   }
 
     StateSpacePtr ss( new ReedsSheppCostmap(costmap_, 1.0) );
-    ss->setLongestValidSegmentFraction(0.2);
+    // ss->setLongestValidSegmentFraction(0.2);
 
     goal_ = ss->allocState()->as<SE2State>();
     start_ = ss->allocState()->as<SE2State>();
@@ -118,7 +118,7 @@ bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geomet
         //     low_res_costmap.getSizeInMetersY()
         // );
         // rrtx_->updateRobot(start.pose);
-        updatePath();
+        updatePath();  
         fillPath(goal, plan);
       }
       return true;
@@ -156,7 +156,7 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     pdp_->setGoalState(goal_);
 
     rrtx_->setProblemDefinition(pdp_);
-    rrtx_->setRange(2.0);
+    rrtx_->setRange(4.0);
     rrtx_->clear();
     solved_ = rrtx_->solve(2.0);
     //activate_static_map(false);

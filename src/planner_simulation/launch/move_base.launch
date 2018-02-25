@@ -36,7 +36,7 @@
     <!-- <param name="base_global_planner" value="global_planner/GlobalPlanner"/> -->
     <param name="base_global_planner" value="rrt/RRTxPlanner"/>
     <param name="controller_frequency" value="2.0" />
-    <param name="planner_frequency" value="5.0" />
+    <param name="planner_frequency" value="2.0" />
     <rosparam file="$(find planner_simulation)/cfg/base_local_planner_params.yaml" command="load" />
   </node>
 
