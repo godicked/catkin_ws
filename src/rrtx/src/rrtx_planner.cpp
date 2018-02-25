@@ -122,6 +122,8 @@ bool RRTxPlanner::generatePlan(const geometry_msgs::PoseStamped &start,
     yaw = tf::getYaw(pose.getRotation());
     goal_->setYaw(yaw);
 
+    rrtx_->clear();
+
     pdp_->clearStartStates();
     pdp_->clearGoal();
 
@@ -130,9 +132,10 @@ bool RRTxPlanner::generatePlan(const geometry_msgs::PoseStamped &start,
 
     rrtx_->setProblemDefinition(pdp_);
     rrtx_->setRange(max_distance_);
-    rrtx_->clear();
     solved_ = rrtx_->solve(solve_time_);
     //activate_static_map(false);
+
+    cout << "iterations:" << rrtx_->numIterations() << endl;
 
     return fillPath(goal, plan);
 }
