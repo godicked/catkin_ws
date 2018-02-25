@@ -50,7 +50,7 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
     n.param<double>("longest_valid_segment", longest_valid_segment_, 0.1);
 
     StateSpacePtr ss(new ReedsSheppCostmap(costmap_, turning_radius_));
-    ss->setLongestValidSegmentFraction(longest_valid_segment_);
+    // ss->setLongestValidSegmentFraction(longest_valid_segment_);
 
     goal_ = ss->allocState()->as<SE2State>();
     start_ = ss->allocState()->as<SE2State>();
