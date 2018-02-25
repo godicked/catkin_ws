@@ -36,11 +36,6 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
 {
     ROS_INFO("init rrtx");
     n = ros::NodeHandle("~/" + name);
-    costmap_ros_ = costmap_ros;
-    costmap_ = costmap_ros_->getCostmap();
-    //   low_res_costmap = costmap_2d::Costmap2D(200, 200, 0.05, 0, 0);
-    path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
-    stop_pub = n.advertise<actionlib_msgs::GoalID>("/move_base/cancel", 10);
 
     n.param<double>("max_dist", max_distance_, 4.0);
     n.param<double>("turning_radius", turning_radius_, 0.55);
@@ -48,6 +43,12 @@ void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap
     n.param<double>("car_width", car_width_, 0.15);
     n.param<double>("solve_time", solve_time_, 3.0);
     n.param<double>("longest_valid_segment", longest_valid_segment_, 0.1);
+
+    costmap_ros_ = costmap_ros;
+    costmap_ = costmap_ros_->getCostmap();
+    //   low_res_costmap = costmap_2d::Costmap2D(200, 200, 0.05, 0, 0);
+    path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
+    stop_pub = n.advertise<actionlib_msgs::GoalID>("/move_base/cancel", 10);
 
     StateSpacePtr ss(new ReedsSheppCostmap(costmap_, turning_radius_));
     // ss->setLongestValidSegmentFraction(longest_valid_segment_);
