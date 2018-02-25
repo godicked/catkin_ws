@@ -3,11 +3,11 @@
 // #include <rrtx/spline_curve.hpp>
 #include <actionlib_msgs/GoalID.h>
 #include <nav_msgs/Path.h>
-#include <nav_msgs/OccupancyGrid.h>       
+#include <nav_msgs/OccupancyGrid.h>
 #include <visualization_msgs/Marker.h>
 
-#include <geometry_msgs/Point.h>   
-#include <geometry_msgs/Point32.h>          
+#include <geometry_msgs/Point.h>
+#include <geometry_msgs/Point32.h>
 
 // #include <rrtx/reeds_shepp_config.hpp>
 #include <ompl/base/MotionValidator.h>
@@ -20,7 +20,6 @@ using namespace ompl::base;
 using namespace costmap_2d;
 using namespace std;
 
-
 namespace rrt
 {
 
@@ -30,105 +29,80 @@ RRTxPlanner::RRTxPlanner()
 
 RRTxPlanner::RRTxPlanner(std::string name, costmap_2d::Costmap2DROS *costmap_ros)
 {
-  initialize(name, costmap_ros);
+    initialize(name, costmap_ros);
 }
 
 void RRTxPlanner::initialize(std::string name, costmap_2d::Costmap2DROS *costmap_ros)
 {
-  ROS_INFO("init rrtx");
-  n = ros::NodeHandle("~/" + name);
-  costmap_ros_ = costmap_ros;
-  costmap_ = costmap_ros_->getCostmap();
-//   low_res_costmap = costmap_2d::Costmap2D(200, 200, 0.05, 0, 0);
-  path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
-  stop_pub = n.advertise<actionlib_msgs::GoalID>("/move_base/cancel", 10);
+    ROS_INFO("init rrtx");
+    n = ros::NodeHandle("~/" + name);
 
-//   map_pub = n.advertise<nav_msgs::OccupancyGrid>("low_res", 10);
-//   poly_pub = n.advertise<visualization_msgs::Marker>("obstacles", 10);
-//   converter.initialize(n);
-//   converter.setCostmap2D(&low_res_costmap);
+    n.param<double>("max_dist", max_distance_, 4.0);
+    n.param<double>("turning_radius", turning_radius_, 0.55);
+    n.param<double>("car_length", car_length_, 0.3);
+    n.param<double>("car_width", car_width_, 0.15);
+    n.param<double>("solve_time", solve_time_, 3.0);
+    n.param<double>("longest_valid_segment", longest_valid_segment_, 0.1);
 
-//   costmap_2d::LayeredCostmap *layeredMap = costmap_ros_->getLayeredCostmap();
-//   std::vector< boost::shared_ptr< costmap_2d::Layer > > *layers = layeredMap->getPlugins();
-//   for(auto layer : *layers)
-//   {
-//       //ROS_INFO("candidate %s", layer->getName().c_str());
-//       if(layer->getName().find("inflation_layer") != string::npos)
-//       {
-//           //ROS_INFO("found %s", layer->getName().c_str());
-//           static_layer = layer;
-//       }
-//   }
+    costmap_ros_ = costmap_ros;
+    costmap_ = costmap_ros_->getCostmap();
+    //   low_res_costmap = costmap_2d::Costmap2D(200, 200, 0.05, 0, 0);
+    path_pub = n.advertise<nav_msgs::Path>("smooth_path", 10);
+    stop_pub = n.advertise<actionlib_msgs::GoalID>("/move_base/cancel", 10);
 
-    StateSpacePtr ss( new ReedsSheppCostmap(costmap_, 1.0) );
-    // ss->setLongestValidSegmentFraction(0.2);
+    StateSpacePtr ss(new ReedsSheppCostmap(costmap_, turning_radius_));
+    // ss->setLongestValidSegmentFraction(longest_valid_segment_);
 
     goal_ = ss->allocState()->as<SE2State>();
     start_ = ss->allocState()->as<SE2State>();
 
-    si_.reset( new SpaceInformation(ss) );
+    si_.reset(new SpaceInformation(ss));
     // MotionValidatorPtr mv( new ReedsSheppCostmapMotionValidator(si_.get()) );
-    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si_.get(), costmap_, 0.3, 0.15) );
-    OptimizationObjectivePtr oop( new ReedsSheppOptimizationObjective(si_, costmap_) );
-    pdp_.reset( new ProblemDefinition(si_) );
+    StateValidityCheckerPtr svcp(new CostmapValidityChecker(si_.get(), costmap_, car_length_, car_width_));
+    OptimizationObjectivePtr oop(new ReedsSheppOptimizationObjective(si_, costmap_));
+    pdp_.reset(new ProblemDefinition(si_));
     // MotionValidatorPtr mvp( new ReedsSheppMotionValidator(si_.get()));
 
-    pdp_->setOptimizationObjective( oop );
-    si_->setStateValidityChecker( svcp );
+    pdp_->setOptimizationObjective(oop);
+    si_->setStateValidityChecker(svcp);
     // si_->setMotionValidator(mv);
     // si_->setStateValidityCheckingResolution(0.9);
-    
-    rrtx_.reset( new RRTx(si_) );
 
-    rrt_pub.reset( new ReedsSheppPublisher() );
+    rrtx_.reset(new RRTx(si_));
+
+    rrt_pub.reset(new ReedsSheppPublisher());
     rrt_pub->initialize(&n, "map", si_);
 }
 
-
 bool RRTxPlanner::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
 {
-  ROS_INFO("make plan");
-  
-  //costmap_converter::PolygonContainerConstPtr polygons = getObstacles(start);
-  //publishObstacles(polygons);
+    ROS_INFO("make plan");
 
-//   fill_low_res(costmap_, low_res_costmap, start);
-
-  if(goalChanged(goal))
-  {
-      userGoal = goal;
-      bool valid = generatePlan(start, goal, plan);
-      validGoal = plan.back();
-      return valid;
-  }
-  else
-  {
-      if(isAtGoal(start))
-      {
-          stopPlanner();
-      }
-      else
-      {
-
-        
-        // rrtx_->updateTree(
-        //     low_res_costmap.getOriginX(), 
-        //     low_res_costmap.getOriginY(),
-        //     low_res_costmap.getSizeInMetersX(),
-        //     low_res_costmap.getSizeInMetersY()
-        // );
-        // rrtx_->updateRobot(start.pose);
-        updatePath();  
-        fillPath(goal, plan);
-      }
-      return true;
-  }
-
+    if (goalChanged(goal))
+    {
+        userGoal = goal;
+        bool valid = generatePlan(start, goal, plan);
+        validGoal = plan.back();
+        return valid;
+    }
+    else
+    {
+        if (isAtGoal(start))
+        {
+            stopPlanner();
+        }
+        else
+        {
+            updatePath();
+            fillPath(goal, plan);
+        }
+        return true;
+    }
 }
 
-bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
-                                const geometry_msgs::PoseStamped &goal,
-                                std::vector<geometry_msgs::PoseStamped> &plan)
+bool RRTxPlanner::generatePlan(const geometry_msgs::PoseStamped &start,
+                               const geometry_msgs::PoseStamped &goal,
+                               std::vector<geometry_msgs::PoseStamped> &plan)
 {
     // activate_static_map(true);
     // costmap_ros_->updateMap();
@@ -148,7 +122,9 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     tf::poseMsgToTF(goal.pose, pose);
     yaw = tf::getYaw(pose.getRotation());
     goal_->setYaw(yaw);
-    
+
+    rrtx_->clear();
+
     pdp_->clearStartStates();
     pdp_->clearGoal();
 
@@ -156,10 +132,11 @@ bool RRTxPlanner::generatePlan( const geometry_msgs::PoseStamped &start,
     pdp_->setGoalState(goal_);
 
     rrtx_->setProblemDefinition(pdp_);
-    rrtx_->setRange(4.0);
-    rrtx_->clear();
-    solved_ = rrtx_->solve(2.0);
+    rrtx_->setRange(max_distance_);
+    solved_ = rrtx_->solve(solve_time_);
     //activate_static_map(false);
+
+    cout << "iterations:" << rrtx_->numIterations() << endl;
 
     return fillPath(goal, plan);
 }
@@ -171,7 +148,7 @@ void RRTxPlanner::updatePath()
 
     ROS_INFO("Update Path");
 
-    if(!solved_)
+    if (!solved_)
     {
         return;
     }
@@ -179,11 +156,11 @@ void RRTxPlanner::updatePath()
     auto path = pdp_->getSolutionPath()->as<ompl::geometric::PathGeometric>();
     auto states = path->getStates();
 
-    for(int i = 0; i < states.size()-1; i++)
+    for (int i = 0; i < states.size() - 1; i++)
     {
         auto v = states[i];
-        auto u = states[i+1];
-        if(!si_->checkMotion(v, u))
+        auto u = states[i + 1];
+        if (!si_->checkMotion(v, u))
         {
             auto center = si_->allocState();
             si_->getStateSpace()->interpolate(v, u, 0.5, center);
@@ -194,9 +171,6 @@ void RRTxPlanner::updatePath()
             si_->freeState(center);
         }
     }
-
-
-
 }
 
 bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)
@@ -204,53 +178,52 @@ bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<g
     PlannerData data(si_);
     rrtx_->getPlannerData(data);
 
-    if(solved_)
+    if (solved_)
     {
         auto path = pdp_->getSolutionPath()->as<ompl::geometric::PathGeometric>();
-        auto states = path->getStates(); 
+        auto states = path->getStates();
 
         cout << "solved " << states.size() << endl;
 
         vector<geometry_msgs::Pose> poses;
         states_to_poses(si_, states, poses);
 
-        for(auto pose : poses)
+        for (auto pose : poses)
         {
             //cout << pose.position.x << " " << pose.position.y << endl;
 
             geometry_msgs::PoseStamped poseStmp;
             poseStmp.header = goal.header;
-            poseStmp.pose   = pose;
+            poseStmp.pose = pose;
 
             plan.push_back(poseStmp);
         }
-        
+
         nav_msgs::Path spath;
         spath.header = plan.back().header;
         spath.poses = plan;
-        
+
         path_pub.publish(spath);
     }
     else
     {
         cout << "not solved" << endl;
     }
-    
+
     rrt_pub->publish(data);
 
     return true;
-
 }
 
 bool RRTxPlanner::isAtGoal(const geometry_msgs::PoseStamped &robot)
 {
-    if( abs(robot.pose.position.x - userGoal.pose.position.x) < goal_tolerance &&
+    if (abs(robot.pose.position.x - userGoal.pose.position.x) < goal_tolerance &&
         abs(robot.pose.position.y - userGoal.pose.position.y) < goal_tolerance)
     {
         return true;
     }
 
-    if( abs(robot.pose.position.x - validGoal.pose.position.x) < goal_tolerance &&
+    if (abs(robot.pose.position.x - validGoal.pose.position.x) < goal_tolerance &&
         abs(robot.pose.position.y - validGoal.pose.position.y) < goal_tolerance)
     {
         ROS_WARN("Could not get better");
@@ -269,7 +242,7 @@ void RRTxPlanner::stopPlanner()
 
 bool RRTxPlanner::goalChanged(const geometry_msgs::PoseStamped &goal)
 {
-    if( abs(goal.pose.position.x - userGoal.pose.position.x) < 0.01 &&
+    if (abs(goal.pose.position.x - userGoal.pose.position.x) < 0.01 &&
         abs(goal.pose.position.y - userGoal.pose.position.y) < 0.01)
     {
         return false;

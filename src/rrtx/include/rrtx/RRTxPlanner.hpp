@@ -82,6 +82,13 @@ class RRTxPlanner : public nav_core::BaseGlobalPlanner
     SE2State *start_;
     SE2State *goal_;
 
+    double max_distance_;
+    double turning_radius_;
+    double solve_time_;
+    double longest_valid_segment_;
+    double car_length_;
+    double car_width_;
+
 };
 }; // namespace rrt
 #endif

@@ -1,0 +1,6 @@
+solve_time: 3
+max_dist: 4
+turning_radius: 0.55
+car_length: 0.3
+car_width: 0.15
+longest_valid_segment: 0.1
