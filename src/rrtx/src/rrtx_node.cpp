@@ -37,7 +37,7 @@ using namespace costmap_2d;
 using namespace rrt;
 using namespace std;
 
-std::shared_ptr<RRTstar> rrts;
+
 std::shared_ptr<RRTx> rrtx;
 
 ros::Publisher path_pub;
@@ -51,6 +51,7 @@ double turningRadius;
 double solveTime;
 bool constraint;
 bool limitTime;
+bool save_last;
 
 
 typedef ReedsSheppStateSpace::StateType RState;
@@ -71,7 +72,7 @@ geometry_msgs::Pose start;
 
 std::shared_ptr<ros::NodeHandle> n;
 
-int test = 0;
+int solve_counter = 0;
 
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
 {
@@ -112,28 +113,25 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 
     tf::Pose tfp;
 
-    if(test == 0)
+    if(solve_counter == 0 || !save_last)
     {
         cout << "first solve" << endl;
-    //  set goal yaw
-    tf::poseMsgToTF(goal.pose, tfp);
-    double yaw = tf::getYaw(tfp.getRotation());
-    goal_->setYaw(yaw);
+        //  set goal yaw
+        tf::poseMsgToTF(goal.pose, tfp);
+        double yaw = tf::getYaw(tfp.getRotation());
+        goal_->setYaw(yaw);
 
-    goal_->setX(goal.pose.position.x);
-    goal_->setY(goal.pose.position.y);
+        goal_->setX(goal.pose.position.x);
+        goal_->setY(goal.pose.position.y);
 
-    // goal_->setX(7.7);
-    // goal_->setY(9.2);
+        PLANNER->clear();
+        pdp->clearSolutionPaths();
 
-    PLANNER->clear();
-    pdp->clearSolutionPaths();
+        pdp->clearGoal();
+        pdp->setGoalState(goal_);
 
-    pdp->clearGoal();
-    pdp->setGoalState(goal_);
-
-    PLANNER->setProblemDefinition(pdp);
-    PLANNER->setRange(maxDist);
+        PLANNER->setProblemDefinition(pdp);
+        PLANNER->setRange(maxDist);
 
     }
     else
@@ -142,7 +140,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
         pdp->clearSolutionPaths();
         PLANNER->setProblemDefinition(pdp);
         // PLANNER->setRange(5);
-        if(test > 5) solveTime = 30;
+        if(solve_counter > 5) solveTime = 30;
     }
 
 
@@ -168,7 +166,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     ROS_INFO("%d iterations", PLANNER->numIterations());
     // cout << "vertices : " << rrts->numVertices() << endl;
 
-    if(test > 0)
+    if(solve_counter > 0)
     {
         // for(int x = 0; x < 50; x++)
         // {
@@ -208,7 +206,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
         // }
         // d = ros::Time::now() - t;
         // ROS_INFO("update took %.2f seconds", d.toSec());
-        test++;
+        solve_counter++;
 
     }
     
@@ -227,7 +225,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 
         vector<ompl::base::State *> old_path;
         poses_to_states(si, poses, old_path);
-        test++;
+        solve_counter++;
         // PLANNER->as<RRTx>()->setSearchPath(old_path, 1);
         // ss.reset( new ReedsSheppCostmap(cost, turningRadius) );
         ss->as<ReedsSheppCostmap>()->setRoad(old_path, 1);
