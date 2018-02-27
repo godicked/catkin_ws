@@ -23,7 +23,7 @@
 
 #include <tf/tf.h>
 
-namespace ob = ompl::base;
+// namespace ob = ompl::base;
 
 namespace rrt
 {

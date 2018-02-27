@@ -51,21 +51,27 @@ namespace rrt
         }
         opt_ = pdef_->getOptimizationObjective();
 
+        // Create robot position Motion
         vbot_ = new Motion();
-        vbot_->state = pdef_->getStartState(0);
         vbot_->g = opt_->infiniteCost();
         vbot_->lmc = opt_->infiniteCost();
+        // Set state from problem definition
+        vbot_->state = si_->allocState();
+        si_->copyState(vbot_->state, pdef_->getStartState(0));
 
+        // Create goal Motion
         goal_ = new Motion();
-        goal_->state = pdef_->getGoal()->as<GoalState>()->getState();
         goal_->g     = opt_->identityCost(); // 0.0
         goal_->lmc   = opt_->identityCost(); // 0.0
+        // Set state from problem definition
+        goal_->state = si_->allocState();
+        si_->copyState(goal_->state, pdef_->getGoal()->as<GoalState>()->getState());
 
+
+        // Initialise Tree with goal Motion
         nn_->add(goal_);
 
-        // As defined in RRT* Y >= 2(1 + 1/dim)^(1/dim) * u(XFree)
-        // u = volume, XFree = free space. y > Y since we use total volume of map
-        // const double dim = si_->getStateDimension();
+        // As defined in RRT*
         const double dim = si_->getStateDimension() + 0.0;
         const double free = si_->getSpaceMeasure();
 
@@ -80,7 +86,7 @@ namespace rrt
         // setup
         checkValidity();
 
-        cout << "start with maxDist " << maxDist_ << endl;
+        // cout << "start with maxDist " << maxDist_ << endl;
 
         vector<double> costs;
         vector<ros::Duration> times;
@@ -165,7 +171,7 @@ namespace rrt
             nn_->list(motions);
             for(auto m : motions)
             {
-                if(m->state && m != goal_ && m != vbot_)
+                if(m->state)
                     si_->freeState(m->state);
                 delete m;
             }
@@ -600,10 +606,11 @@ namespace rrt
         motion->lmc = opt_->infiniteCost();
         motion->g = opt_->infiniteCost();
 
-        std::uniform_int_distribution<int> goal_uni(0, 10); // guaranteed unbiased
+        std::uniform_int_distribution<int> goal_uni(0, goal_bias_); // guaranteed unbiased
         auto random = goal_uni(rng);
-        if(vbot_->parent == nullptr && random < 1)
+        if((vbot_->parent == nullptr && random < 1) || force_goal_bias_)
         {
+            force_goal_bias_ = false;
             return vbot_;
         }
 
@@ -823,22 +830,20 @@ namespace rrt
         }
     }
 
-    // void RRTx::updateRobot(geometry_msgs::Pose robot)
-    // {
-    //     // Motion vbot;
-    //     // vbot.x = robot.position.x;
-    //     // vbot.y = robot.position.y;
+    ob::PlannerStatus RRTx::updateRobot(ob::State *robot)
+    {
+        vbot_ = sampleMotion();
+        si_->copyState(vbot_->state, robot);
 
-    //     // if(lastPath.size() > 3)
-    //     // {
-    //     //     if(distance(vbot, *lastPath[1]) > distance(vbot, *lastPath[2]) && getCost(lastPath[1], lastPath[2]) != infinity)
-    //     //     {
-    //     //         vbot_ = lastPath[1];
-    //     //         makeParentOf(lastPath[2], vbot_);
-    //     //         updateKey(vbot_);
-    //     //     }
-    //     // }
-    // }
+        ros::Time t = ros::Time::now();
+
+        const PlannerTerminationCondition ptc([&,t](){ 
+            return vbot_->parent != nullptr || ros::Time::now() - t > ros::Duration(0.3);
+        });
+
+        force_goal_bias_ = true;
+        return solve(ptc);
+    }
 
 
 }; // namespace rrt

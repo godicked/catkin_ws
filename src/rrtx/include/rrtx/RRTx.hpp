@@ -15,7 +15,7 @@
 #include <ompl/base/PlannerTerminationCondition.h>
 
 
-namespace ob = ompl::base;
+// namespace ob = ompl::base;
 
 using namespace boost;
 
@@ -68,10 +68,9 @@ namespace rrt
 
             ob::PlannerStatus updateTree(ob::State *center, double radius); //
             
-            // void                updateRobot (geometry_msgs::Pose robot);
+            ob::PlannerStatus updateRobot(ob::State *robot);
 
     private:
-            void freeMemory();
 
             double distance(Motion *v, Motion *u);//
 
@@ -155,6 +154,8 @@ namespace rrt
             double  radius_;
             double  y_;
             unsigned int iteration_;
+            unsigned int goal_bias_ = 50; // 1 every 50 samples
+            bool force_goal_bias_ = false; // used to sample the new robot position
 
             Motion    *vbot_ = nullptr;
             Motion    *goal_ = nullptr;

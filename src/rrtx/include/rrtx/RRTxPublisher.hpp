@@ -21,11 +21,12 @@
 #define TREE_NODE_ID 4
 #define TREE_EDGE_ID 5
 
-using namespace ompl::base;
+
 
 namespace rrt
 {
-
+    using namespace ompl::base;
+    
     class RRTxPublisher
     {
         public:

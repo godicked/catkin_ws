@@ -28,6 +28,8 @@
 #include <ompl/base/MotionValidator.h>
 
 #include <rrtx/SE2Publisher.hpp>
+#include <rrtx/Utils.hpp>
+#include <boost/thread.hpp>
 
 #define PLANNER rrtx
 
@@ -38,10 +40,17 @@ using namespace rrt;
 using namespace std;
 
 
+void publishSearch(bool solved);
+void updateTree(double frequency);
+
 std::shared_ptr<RRTx> rrtx;
 
 ros::Publisher path_pub;
 std::shared_ptr<rrt::RRTxPublisher> rrt_pub;
+
+boost::thread *update_thread = NULL;
+
+tf::TransformListener *tfl;
 
 int growSize;
 double maxDist;
@@ -52,6 +61,12 @@ double solveTime;
 bool constraint;
 bool limitTime;
 bool save_last;
+
+string map_frame = "map";
+string odom_frame = "odom";
+string base_frame = "base_link";
+
+tf::Stamped<tf::Pose> base_pose;
 
 
 typedef ReedsSheppStateSpace::StateType RState;
@@ -72,144 +87,125 @@ geometry_msgs::Pose start;
 
 std::shared_ptr<ros::NodeHandle> n;
 
-int solve_counter = 0;
+geometry_msgs::PoseStamped goal_pose;
 
+/**
+ * Pose update for Rviz
+**/
+bool first_time = true;
 void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose) 
 {
+    pose_to_state(pose.pose.pose, start_);
 
-    tf::Pose tfp;
-    
-    //  set start yaw
-    tf::poseMsgToTF(pose.pose.pose, tfp);
-    double yaw = tf::getYaw(tfp.getRotation());
-    start_->setYaw(yaw);
-
-    start = pose.pose.pose;
-    start_->setX(start.position.x);
-    start_->setY(start.position.y);
-
-    // start_->setX(1.3);
-    // start_->setY(2.4);
-
-    // unsigned int mx, my;
-    // cost->worldToMap(start.position.x, start.position.y, mx, my);
-    // ROS_INFO("start at %d, %d", mx, my);
-
-    cout << "done" << endl;
     pdp->clearStartStates();
     pdp->addStartState(start_);
-}
 
-void goalCallback(geometry_msgs::PoseStamped goal)
-{
-    unsigned int mx, my;
-    cost->worldToMap(goal.pose.position.x, goal.pose.position.y, mx, my);
-
-        //if(isOutOfBound(mx, my))
-        //    return true;
-
-    ROS_INFO("cost %d", cost->getCost(mx, my));
-    //return;
-
-    tf::Pose tfp;
-
-    if(solve_counter == 0 || !save_last)
+    if(first_time)
     {
-        cout << "first solve" << endl;
-        //  set goal yaw
-        tf::poseMsgToTF(goal.pose, tfp);
-        double yaw = tf::getYaw(tfp.getRotation());
-        goal_->setYaw(yaw);
-
-        goal_->setX(goal.pose.position.x);
-        goal_->setY(goal.pose.position.y);
-
-        PLANNER->clear();
-        pdp->clearSolutionPaths();
-
-        pdp->clearGoal();
-        pdp->setGoalState(goal_);
-
-        PLANNER->setProblemDefinition(pdp);
-        PLANNER->setRange(maxDist);
-
+        first_time = false;
     }
     else
     {
-        PLANNER->clear();
-        pdp->clearSolutionPaths();
-        PLANNER->setProblemDefinition(pdp);
-        // PLANNER->setRange(5);
-        if(solve_counter > 5) solveTime = 30;
+        bool solved = PLANNER->updateRobot(start_);
+        publishSearch(solved);    
     }
+    
+    ROS_INFO("Position updated");
+}
 
+/**
+ * User Goal callback
+**/  
+void goalCallback(geometry_msgs::PoseStamped goal)
+{
+    pose_to_state(goal.pose, goal_);
 
-    const PlannerTerminationCondition ptc([&](){ return PLANNER->numIterations() >= growSize; });
+    goal_pose = goal;
+
+    PLANNER->clear();
+    pdp->clearSolutionPaths();
+
+    pdp->clearGoal();
+    pdp->setGoalState(goal_);
+
+    PLANNER->setProblemDefinition(pdp);
+    PLANNER->setRange(maxDist);
+    ss->setLongestValidSegmentFraction(0.005);
 
     ros::Time t = ros::Time::now();
     ros::Duration d;
     bool solved = false;
 
+    solved = PLANNER->as<Planner>()->solve(solveTime);
 
-    
-    if(limitTime)
-    {
-        solved = PLANNER->as<Planner>()->solve(solveTime);
-    }
-    else 
-    {
-        solved = PLANNER->solve(ptc);
-    }
     d = ros::Time::now() - t;
 
-    ROS_INFO("solve took %.2f seconds", d.toSec());
+    ROS_INFO("Sampling during %.2f seconds", d.toSec());
     ROS_INFO("%d iterations", PLANNER->numIterations());
-    // cout << "vertices : " << rrts->numVertices() << endl;
+    
+    publishSearch(solved);
 
-    if(solve_counter > 0)
+    if(update_thread == NULL)
     {
-        // for(int x = 0; x < 50; x++)
-        // {
-        //     for(int y = 0; y < 100; y++)
-        //     {
-        //         cost->setCost(150+x, 90+y, 254);
-        //     }
-        // }
-        // costmap->updateMap();
-    
-        // auto center = si->allocState()->as<RState>();
-        // double wx, wy;
-        // cost->mapToWorld(175, 130, wx, wy);
-        // center->setXY(wx, wy);
-    
-        // t = ros::Time::now();
-        // // solved = rrtx->updateTree(center, 2.0);
-        // // d = ros::Time::now() - t;
-
-        // auto path = pdp->getSolutionPath()->as<PathGeometric>();
-        // auto states = path->getStates();
-        // cout << "before" << endl;
-        // int size = states.size();
-    
-        // for(int i = 0; i < size-1; i++)
-        // {
-        //     auto v = states[i];
-        //     auto u = states[i+1];
-        //     if(!si->checkMotion(v, u))
-        //     {
-        //         ROS_WARN("obstacle found i: %d",i);
-        //         auto center = si->allocState()->as<RState>();
-        //         si->getStateSpace()->interpolate(v, u, 0.5, center);
-        //         solved = rrtx->updateTree(center, si->distance(v, u));
-        //         break;
-        //     }
-        // }
-        // d = ros::Time::now() - t;
-        // ROS_INFO("update took %.2f seconds", d.toSec());
-        solve_counter++;
-
+        update_thread = new boost::thread(boost::bind(updateTree, 2));
     }
-    
+}
+
+bool update_thread_shutdown = false;
+void updateTree(double frequency)
+{
+    ros::Rate rate(frequency);
+
+    while(ros::ok && !update_thread_shutdown)
+    {
+        base_pose.stamp_ = ros::Time::now();
+        base_pose.frame_id_ = base_frame;
+        tf::Stamped<tf::Pose> map_pose;
+        try
+        {
+            tfl->waitForTransform(base_frame, map_frame, base_pose.stamp_, ros::Duration(0.1));
+            tfl->transformPose(map_frame, base_pose, map_pose);
+        }
+        catch (tf::TransformException ex)
+        {
+            ROS_ERROR("%s", ex.what());
+            continue;
+        }
+
+        ompl::base::State *robot = si->allocState();
+        tf_to_state(map_pose, robot);
+
+        if(si->distance(robot, goal_) < 0.1)
+        {
+            si->freeState(robot);
+            update_thread_shutdown = true;
+            return;
+        }
+
+        // Donc update for small position changes
+        if(si->distance(start_, robot) < 0.2)
+        {
+            si->freeState(robot);
+            continue;
+        }
+
+        si->copyState(start_, robot);
+        si->freeState(robot);
+
+        pdp->clearStartStates();
+        pdp->addStartState(start_);
+ 
+        bool solved = PLANNER->updateRobot(start_);
+        publishSearch(solved);    
+        
+        ROS_INFO("Position updated");
+
+        rate.sleep();
+    }
+}
+
+void publishSearch(bool solved)
+{
     PlannerData data(si);
     PLANNER->getPlannerData(data);
 
@@ -218,25 +214,16 @@ void goalCallback(geometry_msgs::PoseStamped goal)
         auto path = pdp->getSolutionPath()->as<PathGeometric>();
         auto states = path->getStates(); 
 
-        cout << "solved " << states.size() << endl;
+        ROS_INFO("Solved!");
 
         vector<geometry_msgs::Pose> poses;
         states_to_poses(si, states, poses);
 
-        vector<ompl::base::State *> old_path;
-        poses_to_states(si, poses, old_path);
-        solve_counter++;
-        // PLANNER->as<RRTx>()->setSearchPath(old_path, 1);
-        // ss.reset( new ReedsSheppCostmap(cost, turningRadius) );
-        ss->as<ReedsSheppCostmap>()->setRoad(old_path, 1);
-
         std::vector<geometry_msgs::PoseStamped> plan;
         for(auto pose : poses)
         {
-            //cout << pose.position.x << " " << pose.position.y << endl;
-
             geometry_msgs::PoseStamped poseStmp;
-            poseStmp.header = goal.header;
+            poseStmp.header = goal_pose.header;
             poseStmp.pose   = pose;
 
             plan.push_back(poseStmp);
@@ -250,12 +237,13 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     }
     else
     {
-        cout << "not solved" << endl;
+        ROS_WARN("No path found");
+        nav_msgs::Path path;
+        path.header = goal_pose.header;
+        path_pub.publish(path);
     }
     
     rrt_pub->publish(data);
-    
-    // rrtx->publish(true, true);
 }
 
 void rrtxSetup()
@@ -265,7 +253,6 @@ void rrtxSetup()
     if(constraint)
     {
         ss.reset( new ReedsSheppCostmap(cost, turningRadius) );
-        // ss->as<ReedsSheppCostmap>()->setRoad(vector<State *>(1), 1);
     }
     else
     {
@@ -274,7 +261,7 @@ void rrtxSetup()
 
     si.reset( new SpaceInformation(ss) );
 
-    if(false)
+    if(!constraint)
         oop.reset( new SE2OptimizationObjective(si, cost) );
     else
         oop.reset( new ReedsSheppOptimizationObjective(si, cost) );
@@ -306,18 +293,20 @@ int main(int argc, char **argv)
     
     n.reset( new ros::NodeHandle("~/") );
 
-    n->param<int>("grow_size", growSize, 1000);
+    // n->param<int>("grow_size", growSize, 1000);
     n->param<double>("max_dist", maxDist, 2.0);
     n->param<bool>("constraint", constraint, true);
     n->param<double>("max_steering", max_steering, 0.55);
     n->param<double>("wheelbase", wheelbase, 0.26);
     n->param<double>("turning_radius", turningRadius, 5.0);
     n->param<double>("solve_time", solveTime, 3.0);
-    n->param<bool>("limit_time", limitTime, true);
+    n->param<string>("map_frame", map_frame, "map");
+    n->param<string>("base_frame", base_frame, "base_link");
+    // n->param<bool>("limit_time", limitTime, true);
 
-    
+    base_pose = tf::Stamped<tf::Pose>(tf::Transform(tf::createQuaternionFromRPY(0,0,0), tf::Vector3(0,0,0)), ros::Time::now(), base_frame);
 
-    ROS_INFO("init with grow_size: %d, max_dist: %.2f", growSize, maxDist);
+    ROS_INFO("init max_dist: %.2f", maxDist);
 
     path_pub = n->advertise<nav_msgs::Path>("smooth_path", 10);
 
@@ -328,8 +317,8 @@ int main(int argc, char **argv)
     ros::ServiceClient client = n->serviceClient<nav_msgs::GetMap>("static_map");
     nav_msgs::GetMap srv;
 
-    tf::TransformListener tf(ros::Duration(10));
-    costmap = new costmap_2d::Costmap2DROS("costmap", tf);
+    tfl = new tf::TransformListener(ros::Duration(10));
+    costmap = new costmap_2d::Costmap2DROS("costmap", *tfl);
     cost = costmap->getCostmap();
 
     rrtxSetup();

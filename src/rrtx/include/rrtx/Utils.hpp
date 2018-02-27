@@ -6,10 +6,11 @@
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/State.h>
 #include <ompl/base/StateSpace.h>
-
+#include <tf/tf.h>
+#include <iostream>
 /**
  * Utility functions for ROS related datatypes
- * Conversion between geomtry_msg::Pose and ob::State
+ * Conversion between geomtry_msg::Pose and ompl::base::State
 **/
 
 namespace fub
@@ -57,6 +58,28 @@ void setYaw(ob::State *s, double yaw)
 /**
  * geometry_msg::Pose and ompl::base::State conversions
 **/
+
+/**
+ * Convert ROS Pose to State. (X,Y,Yaw)
+**/
+void pose_to_state(geometry_msgs::Pose pose, ob::State *state)
+{
+    tf::Pose tf_pose;
+    tf::poseMsgToTF(pose, tf_pose);
+    auto yaw = tf::getYaw(tf_pose.getRotation());
+
+    setX(state, pose.position.x);
+    setY(state, pose.position.y);
+    setYaw(state, yaw);
+}
+
+void tf_to_state(tf::Stamped<tf::Pose> pose, ob::State *state)
+{
+    auto yaw = tf::getYaw(pose.getRotation());
+    setX(state, pose.getOrigin().x());
+    setY(state, pose.getOrigin().y());
+    setYaw(state, yaw);
+}
 
 void states_to_poses(ob::SpaceInformationPtr si, std::vector<ob::State *> &path, std::vector<geometry_msgs::Pose> &poses)
 {

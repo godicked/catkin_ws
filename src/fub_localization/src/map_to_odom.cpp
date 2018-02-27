@@ -19,8 +19,6 @@ string map_frame = "map";
 string odom_frame = "odom";
 string base_frame = "base_link";
 
-ros::Time last_time;
-
 tf::Stamped<tf::Pose> base_pose;
 
 
@@ -28,7 +26,6 @@ void gpsCallback(nav_msgs::OdometryPtr odom)
 {
     auto p = odom->pose.pose.position;
 
-    last_time = odom->header.stamp;
     tf::Pose tfp;
     tf::poseMsgToTF(odom->pose.pose, tfp);
 
@@ -44,12 +41,12 @@ bool updateOdom()
     tf::Stamped<tf::Pose> odom_pose;
     try
     {
+        tfl->waitForTransform(base_frame, odom_frame, base_pose.stamp_, ros::Duration(0.1));
         tfl->transformPose(odom_frame, base_pose, odom_pose);
-        last_time = odom_pose.stamp_;
     }
     catch (tf::TransformException ex)
     {
-        // ROS_ERROR("%s", ex.what());
+        ROS_ERROR("%s", ex.what());
         return false;
     }
 
@@ -65,7 +62,7 @@ void sendTransform()
         tf::Transform base_to_map = map_to_base.inverse();
         tf::Transform map_to_odom = (odom_to_base * base_to_map).inverse();
 
-        ros::Time expiration = last_time;
+        ros::Time expiration = ros::Time::now() + ros::Duration(0.0);
         tfb->sendTransform( tf::StampedTransform(map_to_odom, expiration, map_frame, odom_frame) );
     }
 }
@@ -82,7 +79,7 @@ int main(int argc, char **argv)
 
     base_pose = tf::Stamped<tf::Pose>(tf::Transform(tf::createQuaternionFromRPY(0,0,0), tf::Vector3(0,0,0)), ros::Time::now(), base_frame);
 
-    ros::Rate r(200);
+    ros::Rate r(100);
 
     while(ros::ok())
     {

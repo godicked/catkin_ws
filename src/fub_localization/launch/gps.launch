@@ -2,9 +2,12 @@
   <master auto="start"/>
   <!-- <param name ="/use_sim_time" value="true"/> -->
   <node pkg="tf" type="static_transform_publisher" name="base_to_laser_tf" args="0 0 0 0 0 1 0 base_link laser 100" />
-  <node pkg="tf" type="static_transform_publisher" name="map_to_odom_tf" args="0 0 0 0 0 0 1 map odom 100" />
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom_tf" args="0 0 0 0 0 0 1 map odom 100" /> -->
   
-  <!-- <node pkg="fub_localization" type="map_to_odom" name="map_to_odom_tf" /> -->
+  <!-- <node pkg="fub_localization" type="map_to_odom" name="map_to_odom_tf"> -->
+  <!-- </node> -->
+
+  <node pkg="fub_localization" type="kalman-v2.py" name="kalman_filter" />
 
   <include file="$(find odometry)/launch/odometry.launch" />
 
