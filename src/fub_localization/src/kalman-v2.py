@@ -192,7 +192,7 @@ class kalman_filter:
 		# sending odometry 
 		# print'X', self.X 
 		odom = Odometry()
-		odom.header.frame_id  = 'odom'
+		odom.header.frame_id  = 'map'
 		odom.header.seq = self.odom.header.seq
 		odom.pose.pose.position.x = self.X[0,0]
 		odom.pose.pose.position.y = self.X[1,0]

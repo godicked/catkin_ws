@@ -10,6 +10,7 @@ from geometry_msgs.msg import PointStamped
 import time
 from fub_trajectory_msgs.msg import Trajectory
 from fub_trajectory_msgs.msg import TrajectoryPoint
+from nav_msgs.msg import Odometry
 import math
 from nav_msgs.msg import Path
 from tf.transformations import quaternion_from_euler
@@ -19,16 +20,24 @@ traj_publisher = rospy.Publisher("/model_car/trajectory", Trajectory, queue_size
 sequence =0
 listener = tf.TransformListener()
 
+last_path = None
+
+def gpsCallback(data):
+    global last_path
+    if(last_path != None):
+        conv_to_traj(last_path)
+
 def conv_to_traj(data):
-    global sequence
+    global sequence, last_path
+    last_path = data
     new_traj = Trajectory()
     new_traj.header.seq = sequence
     sequence += 1 #increment counter
     new_traj.header.stamp = rospy.Time.now()
-    new_traj.header.frame_id = "/odom" #TODO change to /map frame
+    new_traj.header.frame_id = "/map" #TODO change to /map frame
     new_traj.child_frame_id = "/base_link"
     no_of_poses = len(data.poses)
-    time_ = rospy.Time.now()
+    time_ = data.header.stamp
     print "no_of_poses : ",no_of_poses
     for i in range(no_of_poses):
         pt_Stamped_in = PointStamped()
@@ -39,7 +48,9 @@ def conv_to_traj(data):
         pt_Stamped_in.point.y = data.poses[i].pose.position.y
         pt_Stamped_in.point.z = 0
         #print "x,y ", data.poses[i].pose.position.x, data.poses[i].pose.position.y
-        tpt = listener.transformPoint("/odom",pt_Stamped_in)
+        # listener.waitForTransform("map", "odom", data.header.stamp, rospy.Duration(1.0))
+        # tpt = listener.transformPoint("/odom",pt_Stamped_in)
+        tpt = pt_Stamped_in
         tp = TrajectoryPoint()
         #pose-position
         tp.pose.position.x = tpt.point.x
@@ -83,17 +94,10 @@ def conv_to_traj(data):
 
 def main(args):
     rospy.init_node('path_to_fub_traj_converter', anonymous = False)
-    rospy.Subscriber("/move_base/RRTxPlanner/smooth_path", Path, conv_to_traj)
-
+    rospy.Subscriber("/rrtx_node/smooth_path", Path, conv_to_traj)
+    # rospy.Subscriber("visual_gps/odom", Odometry, gpsCallback)
+    # rospy.Subscriber("/motionplanner/traj_2", Path, conv_to_traj)
     rospy.spin()
-
-
-
-
-
-
-
-
 
 
 if __name__ == '__main__':

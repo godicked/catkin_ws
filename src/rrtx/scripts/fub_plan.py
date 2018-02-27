@@ -50,7 +50,7 @@ def convert_to_fub_trajectory(path, traj):
 
 def path_callback(path):
     plan = Trajectory()
-    plan.header.frame_id = "/odom"
+    plan.header.frame_id = "/map"
     plan.child_frame_id = "/base_link"
     plan.header.stamp = rospy.Time.now()
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
   try:
     
     rospy.init_node('fub_plan')
-    path_topic = '/move_base/RRTxPlanner/smooth_path'
+    path_topic = '/rrtx_node/smooth_path'
     rospy.Subscriber(path_topic, Path, path_callback, queue_size=1)
     path_pub = rospy.Publisher('/model_car/trajectory', Trajectory, queue_size=10)
 

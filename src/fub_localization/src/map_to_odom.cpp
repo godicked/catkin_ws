@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 
     base_pose = tf::Stamped<tf::Pose>(tf::Transform(tf::createQuaternionFromRPY(0,0,0), tf::Vector3(0,0,0)), ros::Time::now(), base_frame);
 
-    ros::Rate r(100);
+    ros::Rate r(50);
 
     while(ros::ok())
     {

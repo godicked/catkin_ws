@@ -61,10 +61,14 @@ double solveTime;
 bool constraint;
 bool limitTime;
 bool save_last;
+bool publish_tree;
+double obstacle_resolution;
 
 string map_frame = "map";
 string odom_frame = "odom";
 string base_frame = "base_link";
+
+double update_frequecy;
 
 tf::Stamped<tf::Pose> base_pose;
 
@@ -82,6 +86,8 @@ costmap_2d::Costmap2D *cost;
 
 StateSpacePtr ss;
 SpaceInformationPtr si;
+
+StateSpacePtr se2StateSpace;
 
 geometry_msgs::Pose start;
 
@@ -130,7 +136,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 
     PLANNER->setProblemDefinition(pdp);
     PLANNER->setRange(maxDist);
-    ss->setLongestValidSegmentFraction(0.005);
+    ss->setLongestValidSegmentFraction(obstacle_resolution);
 
     ros::Time t = ros::Time::now();
     ros::Duration d;
@@ -147,7 +153,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
 
     if(update_thread == NULL)
     {
-        update_thread = new boost::thread(boost::bind(updateTree, 2));
+        update_thread = new boost::thread(boost::bind(updateTree, update_frequecy));
     }
 }
 
@@ -156,7 +162,7 @@ void updateTree(double frequency)
 {
     ros::Rate rate(frequency);
 
-    while(ros::ok && !update_thread_shutdown)
+    while(ros::ok() && !update_thread_shutdown)
     {
         base_pose.stamp_ = ros::Time::now();
         base_pose.frame_id_ = base_frame;
@@ -175,10 +181,27 @@ void updateTree(double frequency)
         ompl::base::State *robot = si->allocState();
         tf_to_state(map_pose, robot);
 
-        if(si->distance(robot, goal_) < 0.1)
+        if(se2StateSpace->distance(robot, goal_) < 0.2)
         {
             si->freeState(robot);
             update_thread_shutdown = true;
+
+
+            nav_msgs::Path path;
+            path.header = goal_pose.header;
+            path.header.stamp = ros::Time::now();
+        
+            geometry_msgs::PoseStamped poseStmp;
+            poseStmp.header = goal_pose.header;
+            poseStmp.header.stamp = ros::Time::now();
+            
+            tf_to_pose(map_pose, poseStmp.pose);
+            
+        
+            path.poses.push_back(poseStmp);
+        
+            path_pub.publish(path);
+
             return;
         }
 
@@ -202,6 +225,8 @@ void updateTree(double frequency)
 
         rate.sleep();
     }
+
+
 }
 
 void publishSearch(bool solved)
@@ -224,6 +249,7 @@ void publishSearch(bool solved)
         {
             geometry_msgs::PoseStamped poseStmp;
             poseStmp.header = goal_pose.header;
+            poseStmp.header.stamp = ros::Time::now();
             poseStmp.pose   = pose;
 
             plan.push_back(poseStmp);
@@ -232,7 +258,7 @@ void publishSearch(bool solved)
         nav_msgs::Path spath;
         spath.header = plan.back().header;
         spath.poses = plan;
-        
+        spath.header.stamp = ros::Time::now();
         path_pub.publish(spath);
     }
     else
@@ -240,10 +266,13 @@ void publishSearch(bool solved)
         ROS_WARN("No path found");
         nav_msgs::Path path;
         path.header = goal_pose.header;
+        path.header.stamp = ros::Time::now();
         path_pub.publish(path);
     }
-    
-    rrt_pub->publish(data);
+    if(publish_tree)
+    {
+        rrt_pub->publish(data);
+    }
 }
 
 void rrtxSetup()
@@ -258,6 +287,8 @@ void rrtxSetup()
     {
         ss.reset( new SE2Costmap(cost) );
     }
+
+    se2StateSpace.reset( new ompl::base::SE2StateSpace );
 
     si.reset( new SpaceInformation(ss) );
 
@@ -302,6 +333,9 @@ int main(int argc, char **argv)
     n->param<double>("solve_time", solveTime, 3.0);
     n->param<string>("map_frame", map_frame, "map");
     n->param<string>("base_frame", base_frame, "base_link");
+    n->param<double>("update_frequency", update_frequecy, 1/5.0);
+    n->param<bool>("publish_tree", publish_tree, true);
+    n->param<double>("obstalce_resolution", obstacle_resolution, 0.005);
     // n->param<bool>("limit_time", limitTime, true);
 
     base_pose = tf::Stamped<tf::Pose>(tf::Transform(tf::createQuaternionFromRPY(0,0,0), tf::Vector3(0,0,0)), ros::Time::now(), base_frame);

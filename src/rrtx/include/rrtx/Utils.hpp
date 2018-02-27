@@ -55,6 +55,7 @@ void setYaw(ob::State *s, double yaw)
     s->as<ob::SE2StateSpace::StateType>()->setYaw(yaw);
 }
 
+
 /**
  * geometry_msg::Pose and ompl::base::State conversions
 **/
@@ -79,6 +80,22 @@ void tf_to_state(tf::Stamped<tf::Pose> pose, ob::State *state)
     setX(state, pose.getOrigin().x());
     setY(state, pose.getOrigin().y());
     setYaw(state, yaw);
+}
+
+void tf_to_pose(tf::Stamped<tf::Pose> tf, geometry_msgs::Pose &pose)
+{
+    pose.position.x = tf.getOrigin().x();
+    pose.position.y = tf.getOrigin().y();
+    pose.position.z = 0;
+
+    double yaw = tf::getYaw(tf.getRotation());
+    auto q = tf::createQuaternionFromRPY(0, 0, yaw);
+
+    pose.orientation.x = q[0];
+    pose.orientation.y = q[1];
+    pose.orientation.z = q[2];
+    pose.orientation.w = q[3];
+
 }
 
 void states_to_poses(ob::SpaceInformationPtr si, std::vector<ob::State *> &path, std::vector<geometry_msgs::Pose> &poses)

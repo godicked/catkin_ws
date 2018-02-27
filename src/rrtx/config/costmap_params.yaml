@@ -1,7 +1,7 @@
 costmap:
 
-    publish_frequency: 2.0
-    update_frequency: 2.0
+    publish_frequency: 0.5
+    update_frequency: 0.5
 
     plugins: 
         - {name: static_map, type: "costmap_2d::StaticLayer"}
@@ -13,19 +13,17 @@ costmap:
         # cost_scaling_factor: 200
 
     obstacle_layer:
-        footprint_clearing_enabled: false
+        footprint_clearing_enabled: true
         observation_sources: laser_scan_sensor
-        laser_scan_sensor: {
-            sensor_frame: robot0_laser_0,
-            data_type: LaserScan,
-            topic: /robot0/laser_0,
-            marking: true,
-            clearing: true,
-            obstacle_range: 6.0,
-            raytrace_range: 6.0
-        }
+        laser_scan_sensor: 
+            sensor_frame: laser
+            data_type: LaserScan
+            topic: /scan
+            marking: true
+            clearing: true
+            inf_is_valid: true
 
-    footprint: [[-0.4, 0.13], [0.4, 0.13], [0.4, -0.13], [-0.4, -0.13]]
+    footprint: [[0.15, 0.1], [0.15, -0.1], [-0.15, -0.1], [-0.15, 0.1]]
     global_frame: /map
-    robot_base_frame: robot0
+    robot_base_frame: base_link
 
