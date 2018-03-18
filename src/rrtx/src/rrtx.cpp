@@ -268,7 +268,7 @@ namespace rrt
     void RRTx::extend(Motion *v)
     {
         vector<Motion *> nbhs;
-        nn_->nearestR(v, radius_ +0.001, nbhs);
+        nn_->nearestR(v, radius_ -0.001, nbhs);
 
         auto time = ros::Time::now();
         s_time += ros::Time::now() - time;
@@ -379,11 +379,12 @@ namespace rrt
     */
     void RRTx::reduceInconsistency()
     {
-        while(  !q_.empty() &&
-                (q_.top()->key < vbot_->key ||
-                !opt_->isCostEquivalentTo(vbot_->lmc, vbot_->g) ||
-                opt_->isCostEquivalentTo(vbot_->g, opt_->infiniteCost()) ||
-                queueContains(vbot_)))
+        // while(  !q_.empty() &&
+        //         (q_.top()->key < vbot_->key ||
+        //         !opt_->isCostEquivalentTo(vbot_->lmc, vbot_->g) ||
+        //         opt_->isCostEquivalentTo(vbot_->g, opt_->infiniteCost()) ||
+        //         queueContains(vbot_)))
+        while(!q_.empty())
         {
 
             //Take first Motion from queue and remove it
@@ -601,6 +602,7 @@ namespace rrt
         radius_ = y_ * std::pow(log(n) / n, 1.0 / si_->getStateDimension());
         // radius_ = y_ * std::pow(log(n) / n, 1 / 2.0);
         radius_ = min(radius_, maxDist_);
+        // TODO: mettre bien
         //cout << "new radius_: " << radius_ << endl;
     }
 
