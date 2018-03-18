@@ -39,6 +39,12 @@ namespace rrt
             //  Maximum distance between two sampled states
             void setRange(double maxDist);
 
+            //  Set epsilon
+            void setEpsilon(double e)
+            {
+                epsilon = ob::Cost(e);
+            }
+
             //  Default solve with time as termination condition from base class
             using Planner::solve;
 
@@ -69,6 +75,8 @@ namespace rrt
             ob::PlannerStatus updateTree(ob::State *center, double radius); //
             
             ob::PlannerStatus updateRobot(ob::State *robot);
+
+            ob::PlannerStatus verifyPath();
 
     private:
 
@@ -149,12 +157,12 @@ namespace rrt
             double maxDist_ = 4.55;
             bool symmetric_;
 
-            ob::Cost epsilon = ob::Cost(0.05);
+            ob::Cost epsilon = ob::Cost(0.01);
 
             double  radius_;
             double  y_;
             unsigned int iteration_;
-            unsigned int goal_bias_ = 50; // 1 every 50 samples
+            unsigned int goal_bias_ = 10; // 1 every 50 samples
             bool force_goal_bias_ = false; // used to sample the new robot position
 
             Motion    *vbot_ = nullptr;

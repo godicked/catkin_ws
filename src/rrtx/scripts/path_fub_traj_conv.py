@@ -34,7 +34,7 @@ def conv_to_traj(data):
     new_traj.header.seq = sequence
     sequence += 1 #increment counter
     new_traj.header.stamp = rospy.Time.now()
-    new_traj.header.frame_id = "/map" #TODO change to /map frame
+    new_traj.header.frame_id = "/odom" #TODO change to /map frame
     new_traj.child_frame_id = "/base_link"
     no_of_poses = len(data.poses)
     time_ = data.header.stamp
@@ -43,13 +43,13 @@ def conv_to_traj(data):
         pt_Stamped_in = PointStamped()
         pt_Stamped_in.header.seq =1
         pt_Stamped_in.header.stamp =time_
-        pt_Stamped_in.header.frame_id= "/map"
+        pt_Stamped_in.header.frame_id= "/odom"
         pt_Stamped_in.point.x = data.poses[i].pose.position.x
         pt_Stamped_in.point.y = data.poses[i].pose.position.y
         pt_Stamped_in.point.z = 0
         #print "x,y ", data.poses[i].pose.position.x, data.poses[i].pose.position.y
-        # listener.waitForTransform("map", "odom", data.header.stamp, rospy.Duration(1.0))
-        # tpt = listener.transformPoint("/odom",pt_Stamped_in)
+        listener.waitForTransform("map", "odom", data.header.stamp, rospy.Duration(1.0))
+        tpt = listener.transformPoint("/odom",pt_Stamped_in)
         tpt = pt_Stamped_in
         tp = TrajectoryPoint()
         #pose-position
@@ -80,7 +80,7 @@ def conv_to_traj(data):
         tp.velocity.linear.x = data.poses[i].pose.position.z
         tp.acceleration.linear.x = 0#data.poses[i].pose.orientation.x
         #25 points are published with 0.2s of time gap
-        tp.time_from_start =rospy.Duration(2.3*i)
+        tp.time_from_start =rospy.Duration(0.2*i)
 
         #Append this point to the array of traj points
         new_traj.trajectory.append(tp)
@@ -95,7 +95,7 @@ def conv_to_traj(data):
 def main(args):
     rospy.init_node('path_to_fub_traj_converter', anonymous = False)
     rospy.Subscriber("/rrtx_node/smooth_path", Path, conv_to_traj)
-    # rospy.Subscriber("visual_gps/odom", Odometry, gpsCallback)
+    rospy.Subscriber("visual_gps/odom", Odometry, gpsCallback)
     # rospy.Subscriber("/motionplanner/traj_2", Path, conv_to_traj)
     rospy.spin()
 

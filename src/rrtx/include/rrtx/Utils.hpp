@@ -60,6 +60,16 @@ void setYaw(ob::State *s, double yaw)
  * geometry_msg::Pose and ompl::base::State conversions
 **/
 
+void set_orientation(geometry_msgs::Pose &pose, double yaw)
+{
+    auto q = tf::createQuaternionFromRPY(0, 0, yaw);
+
+    pose.orientation.x = q[0];
+    pose.orientation.y = q[1];
+    pose.orientation.z = q[2];
+    pose.orientation.w = q[3];
+}
+
 /**
  * Convert ROS Pose to State. (X,Y,Yaw)
 **/
@@ -72,6 +82,16 @@ void pose_to_state(geometry_msgs::Pose pose, ob::State *state)
     setX(state, pose.position.x);
     setY(state, pose.position.y);
     setYaw(state, yaw);
+}
+
+void state_to_pose(ob::State *state, geometry_msgs::Pose &pose)
+{
+    pose.position.x = getX(state);
+    pose.position.y = getY(state);
+    pose.position.z = 0.5;
+
+    double yaw = getYaw(state);
+    set_orientation(pose, yaw);
 }
 
 void tf_to_state(tf::Stamped<tf::Pose> pose, ob::State *state)
@@ -89,13 +109,7 @@ void tf_to_pose(tf::Stamped<tf::Pose> tf, geometry_msgs::Pose &pose)
     pose.position.z = 0;
 
     double yaw = tf::getYaw(tf.getRotation());
-    auto q = tf::createQuaternionFromRPY(0, 0, yaw);
-
-    pose.orientation.x = q[0];
-    pose.orientation.y = q[1];
-    pose.orientation.z = q[2];
-    pose.orientation.w = q[3];
-
+    set_orientation(pose, yaw);
 }
 
 void states_to_poses(ob::SpaceInformationPtr si, std::vector<ob::State *> &path, std::vector<geometry_msgs::Pose> &poses)
@@ -106,25 +120,17 @@ void states_to_poses(ob::SpaceInformationPtr si, std::vector<ob::State *> &path,
     for(int i = 0; i < size; i++)
     {
         std::vector<ob::State *> sts;
-        si->getMotionStates(path[i], path[i+1], sts, 10, true, true);
+        int number = si->distance(path[i], path[i+1]) / 0.05;
+        // std::cout << "number: " << number;
+        si->getMotionStates(path[i], path[i+1], sts, number, true, true);
         states.insert(states.end(), sts.begin(), sts.end());
+        // states.push_back(path[i+1]);
     }
 
     for(auto s : states)
     {
         geometry_msgs::Pose p;
-        p.position.x = getX(s);
-        p.position.y = getY(s);
-        p.position.z = 0.5;
-
-        double yaw = getYaw(s);
-        auto q = tf::createQuaternionFromRPY(0, 0, yaw);
-
-        p.orientation.x = q[0];
-        p.orientation.y = q[1];
-        p.orientation.z = q[2];
-        p.orientation.w = q[3];
-
+        state_to_pose(s, p);
         poses.push_back(p);
         
     }
@@ -150,6 +156,27 @@ void poses_to_states(ob::SpaceInformationPtr si, std::vector<geometry_msgs::Pose
         setYaw(state, yaw);
 
         states.push_back(state);
+    }
+}
+
+void compute_orientations(std::vector<geometry_msgs::Pose> &poses)
+{
+    for(int i = 1; i < poses.size(); i++)
+    {
+        auto p1 = poses[i-1].position;
+        auto p2 = poses[i].position;
+
+        auto x = p2.x - p1.x;
+        auto y = p2.y - p1.y;
+
+        auto yaw = atan2(x, y);
+        set_orientation(poses[i], yaw);
+        // ROS_INFO("yaw: %.2f", yaw);
+
+        if(i == 1)
+        {
+            set_orientation(poses[0], yaw);
+        }
     }
 }
 

@@ -1,6 +1,10 @@
 digraph G {
-"odom" -> "base_link"[label="Broadcaster: /play_1519456556678211582\nAverage rate: 953.157 Hz\nMost recent transform: 1519129761.984 \nBuffer length: 4.952 sec\n"];
-"podom" -> "odom"[label="Broadcaster: /map_to_odom_tf_12975_1519456556373\nAverage rate: 74.224 Hz\nMost recent transform: 1519129761.941 \nBuffer length: 4.904 sec\n"];
-"map" -> "podom"[label="Broadcaster: /map_to_odom_tf_12975_1519456556373\nAverage rate: 74.224 Hz\nMost recent transform: 1519129761.941 \nBuffer length: 4.904 sec\n"];
-"base_link" -> "laser"[label="Broadcaster: /play_1519456556678211582\nAverage rate: 10.162 Hz\nMost recent transform: 1519129762.043 \nBuffer length: 4.822 sec\n"];
+"map" -> "my_frame"[label="Broadcaster: /tf\nAverage rate: 10.192 Hz\nMost recent transform: 1519654899.137 ( 1.948 sec old)\nBuffer length: 4.906 sec\n"];
+"map" -> "odom"[label="Broadcaster: /map_to_odom_tf\nAverage rate: 80.393 Hz\nMost recent transform: 1519654900.752 ( 0.332 sec old)\nBuffer length: 6.518 sec\n"];
+"odom" -> "base_link"[label="Broadcaster: /odometry_publisher\nAverage rate: 997.496 Hz\nMost recent transform: 1519654900.757 ( 0.328 sec old)\nBuffer length: 4.988 sec\n"];
+"base_link" -> "laser"[label="Broadcaster: /base_to_laser_tf\nAverage rate: 10.186 Hz\nMost recent transform: 1519654900.850 ( 0.235 sec old)\nBuffer length: 4.909 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1519654901.085"[ shape=plaintext ] ;
+ }->"map";
 }

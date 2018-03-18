@@ -10,6 +10,13 @@ from cv_bridge import CvBridge, CvBridgeError
 import tf
 import math
 
+def normalizeAngle(angle):
+	while(angle > math.pi):
+		angle -= math.pi * 2
+	while(angle < -math.pi):
+		angle += math.pi * 2
+	return angle
+
 def dtime(odom_last, odom_now):
 	return (odom_now.header.stamp - odom_last.header.stamp).nsecs / 10.0**9
 
@@ -31,11 +38,13 @@ def getVelocity(odom_last, odom_now):
 	dy = (p2.y - p1.y)
 
 	dth = (y2 - y1)
+
+	dth = normalizeAngle(dth)
 	
-	while(dth > math.pi):
-		dth -= math.pi * 2
-	while(dth < -math.pi):
-		dth += math.pi * 2
+	# while(dth > math.pi):
+	# 	dth -= math.pi * 2
+	# while(dth < -math.pi):
+	# 	dth += math.pi * 2
 
 	v = math.sqrt(dx*dx + dy*dy) / dt
 	vth = dth / dt
@@ -133,7 +142,7 @@ class kalman_filter:
 
 		x = pos.x
 		y = pos.y
-		th = yaw
+		th = normalizeAngle(yaw)
 		return np.matrix([x, y, th]).T
 
 	def updateState(self, z, R, H):
@@ -157,6 +166,8 @@ class kalman_filter:
 		# set timestamp
 		self.updateTimestamp = rospy.Time.now()
 
+		# self.X[2,0] = normalizeAngle(self.X[2,0])
+
 	def predict(self, Q):
 		(v, vth) = self.vels
 		t = (rospy.Time.now() - self.updateTimestamp).nsecs / 10.0**9
@@ -167,7 +178,7 @@ class kalman_filter:
 
 		x1 = x + v * math.cos(th) * t
 		y1 = y + v * math.sin(th) * t
-		th1 = th + vth * t
+		th1 = normalizeAngle(th + vth * t)
 
 		# while(th1 > math.pi):
 		# 	th1 -= math.pi * 2
@@ -187,6 +198,7 @@ class kalman_filter:
 
 		# set timestamp
 		self.updateTimestamp = rospy.Time.now()
+		# self.X[2,0] = normalizeAngle(self.X[2,0])
 
 	def publish(self, X):
 		# sending odometry 

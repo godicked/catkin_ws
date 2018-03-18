@@ -22,6 +22,7 @@ using namespace ompl::base;
 std::random_device rd;     // only used once to initialise (seed) engine
 std::mt19937 rng(rd());    // random-number engine used (Mersenne-Twister in this case)
 
+ros::Duration s_time, e_time, r_time;
 
 namespace rrt
 {
@@ -79,6 +80,7 @@ namespace rrt
 
         symmetric_ = si_->getStateSpace()->hasSymmetricDistance();
         // if(symmetric_) cout << "SYMMETRIC" << endl;
+        ROS_INFO("Space measure: %.2f", si_->getSpaceMeasure());
     }
 
     PlannerStatus RRTx::solve(const PlannerTerminationCondition &ptc)
@@ -103,6 +105,14 @@ namespace rrt
             times.push_back(ros::Time::now() - time);
             radius.push_back(radius_);
         }
+
+        auto total_time = times.back();
+        double ps = 100 * s_time.toSec() / total_time.toSec();
+        double pe = 100 * e_time.toSec() / total_time.toSec();
+        double pr = 100 * r_time.toSec() / total_time.toSec();
+
+        ROS_INFO("Grow %.2f sec\nNearestNeighbor search %.2f%%, Extend %.2f%%, ReduceInconsitency %.2f%%", total_time.toSec(), ps, pe, pr);
+
 
         ofstream myfile;
         myfile.open ("/home/godicke/BachelorArbeit/benchmark.txt");
@@ -177,12 +187,6 @@ namespace rrt
             }
         }
 
-        // if(vbot_)
-        // {
-        //     delete vbot_;
-        //     vbot_ = nullptr;
-        // }
-
         iteration_ = 0;
         nn_->clear();
         q_.clear();
@@ -212,17 +216,6 @@ namespace rrt
             data.addEdge(base::PlannerDataVertex(m->state), base::PlannerDataVertex(m->parent->state));
         }
 
-        // for(auto m : motions)
-        // {
-        //     for(auto n : m->inNbhs())
-        //     {
-        //         if (opt_->isCostEquivalentTo(getCost(m, n), opt_->infiniteCost()))
-        //             continue;
-        //         data.addEdge(base::PlannerDataVertex(m->state), base::PlannerDataVertex(n->state));
-        //     }
-            
-        // }
-
         cout << "vertices " << nn_->size() << endl;
         cout << "radius " << radius_ << endl;
         cout << "dimension " << si_->getStateDimension() << endl;
@@ -237,9 +230,14 @@ namespace rrt
         //cout << "grow" << endl;
         updateRadius();
 
+        ros::Time time = ros::Time::now();
+
         Motion *v = sampleMotion();
         Motion *vnearest = nn_->nearest(v);
         saturate(v, vnearest);
+
+        s_time += ros::Time::now() - time;
+        time = ros::Time::now();
 
         if(si_->isValid(v->state))
         {
@@ -248,6 +246,8 @@ namespace rrt
             {
                 rewireNeighbors(v);
                 reduceInconsistency();
+                r_time += ros::Time::now() - time;
+                time = ros::Time::now();
             }
 
         }
@@ -261,7 +261,7 @@ namespace rrt
 
 
 
-    /*  Algorithm 2: extend(Motion, radius_)
+    /*  Algorithm 2: extend
      *  
      *  Set parent and neighbors in radius to Motion
      */
@@ -269,7 +269,15 @@ namespace rrt
     {
         vector<Motion *> nbhs;
         nn_->nearestR(v, radius_ +0.001, nbhs);
+
+        auto time = ros::Time::now();
+        s_time += ros::Time::now() - time;
+        time = ros::Time::now();
+
         vector<Motion *> validMotions = findMotions(v, nbhs);
+
+        e_time += ros::Time::now() - time;
+        time = ros::Time::now();
 
         // search for parent
         findParent(v, validMotions);
@@ -305,7 +313,7 @@ namespace rrt
 
 
     /*  
-    **  Algorithm 3: cullNeighbors(v, r)
+    **  Algorithm 3: cullNeighbors
     **  reduce running neighbors.
     */
     void RRTx::cullNeighbors(Motion *v)
@@ -655,24 +663,42 @@ namespace rrt
      */
     ob::PlannerStatus RRTx::updateTree(ob::State *center, double radius)
     {
-        // ros::Time time = ros::Time::now();
+        ros::Time time = ros::Time::now();
+        ros::Duration search_time, obstacle_time, reduce_time, total_time;
 
         vector<Motion *> motions;
         Motion *m = new Motion();
         m->state = center;
-        nn_->nearestR(m, radius + maxDist_, motions);
-        cout << "update motions " << motions.size() << endl;
+        nn_->nearestR(m, radius + (maxDist_ / 2.0), motions);
+        cout << "update motions " << motions.size() << " (" << (100 * motions.size() / nn_->size()) << "%)" <<  endl;
         //ROS_INFO("start update tree");
         // findFreeMotions(motions);
         // reduceInconsistency();
 
+        search_time = ros::Time::now() - time;
+        time += search_time;
+
         findNewObstacles(motions);
         //ROS_INFO("end add obstacle");
+
+        obstacle_time = ros::Time::now() - time;
+        time += obstacle_time;
+
         propogateDescendants();
         // vbot_->g = opt_->infiniteCost();
+
         verrifyQueue(vbot_);
         reduceInconsistency();
         //ROS_INFO("end update");
+
+        reduce_time = ros::Time::now() - time;
+        total_time = search_time + obstacle_time + reduce_time;
+
+        double ps = 100 * search_time.toSec() / total_time.toSec();
+        double po = 100 * obstacle_time.toSec() / total_time.toSec();
+        double pr = 100 * reduce_time.toSec() / total_time.toSec();
+
+        ROS_INFO("Update %.2f sec\nNearestNeighbor search %.2f%%, FindObstacles %.2f%%, ReduceInconsitency %.2f%%", total_time.toSec(), ps, po, pr);
 
         // ros::Duration d = ros::Time::now() - time;
         //ROS_INFO("update Tree took %.3fsec", d.toSec());
@@ -794,6 +820,10 @@ namespace rrt
                     {
                         verrifyOrphan(v);
                     }
+                    else if(u->parent == v)
+                    {
+                        verrifyOrphan(u);
+                    }
                 }
             }
         }
@@ -843,6 +873,44 @@ namespace rrt
 
         force_goal_bias_ = true;
         return solve(ptc);
+    }
+
+    // Collision check on the optimal path
+    // Update Tree if needed
+    ob::PlannerStatus RRTx::verifyPath()
+    {
+        ros::Time t = ros::Time::now();
+        bool collision = true;
+        bool exit = false;
+        // ob::PlannerState status;
+        while(collision)
+        {
+            // std::cout << "collision check" << std::endl;
+            collision = false;
+            
+            Motion *s = vbot_;
+
+            auto last_valid = make_pair<State*, double>(si_->allocState(), 0);
+            
+            while(s->parent != nullptr && !exit)
+            {
+                // std::cout << "motion check" << std::endl;
+
+                bool valid = si_->checkMotion(s->state, s->parent->state, last_valid);
+                if(!valid)
+                {
+                    collision = true;
+                    updateTree(last_valid.first, 2.0);
+                    exit = true;
+                }
+                s = s->parent;
+            }
+
+            si_->freeState(last_valid.first);
+        }
+
+        ros::Duration d = ros::Time::now() - t;
+        ROS_INFO("Verrify Path took %.2f sec", d.toSec());
     }
 
 

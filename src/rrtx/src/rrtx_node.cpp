@@ -31,6 +31,8 @@
 #include <rrtx/Utils.hpp>
 #include <boost/thread.hpp>
 
+#include <global_planner/planner_core.h>
+
 #define PLANNER rrtx
 
 using namespace ompl::geometric;
@@ -44,6 +46,7 @@ void publishSearch(bool solved);
 void updateTree(double frequency);
 
 std::shared_ptr<RRTx> rrtx;
+std::shared_ptr<global_planner::GlobalPlanner> grid_planner;
 
 ros::Publisher path_pub;
 std::shared_ptr<rrt::RRTxPublisher> rrt_pub;
@@ -63,6 +66,8 @@ bool limitTime;
 bool save_last;
 bool publish_tree;
 double obstacle_resolution;
+bool prediction;
+double road_width;
 
 string map_frame = "map";
 string odom_frame = "odom";
@@ -76,13 +81,19 @@ tf::Stamped<tf::Pose> base_pose;
 typedef ReedsSheppStateSpace::StateType RState;
 
 
-costmap_2d::Costmap2DROS *costmap;
+costmap_2d::Costmap2DROS *costmapRos;
+costmap_2d::Costmap2D::mutex_t *costmap_mutex;
+
+std::vector<State *> road;
 
 ProblemDefinitionPtr pdp;
 RState *goal_;
 RState *start_;
 
-costmap_2d::Costmap2D *cost;
+bool goal_is_set = false;
+bool start_is_set = false;
+
+costmap_2d::Costmap2D *costmap;
 
 StateSpacePtr ss;
 SpaceInformationPtr si;
@@ -95,6 +106,34 @@ std::shared_ptr<ros::NodeHandle> n;
 
 geometry_msgs::PoseStamped goal_pose;
 
+void compute_simple_path(RState *start, RState *goal, std::vector<State *> &path)
+{
+    geometry_msgs::PoseStamped st_start, st_goal;
+    state_to_pose(start, st_start.pose);
+    state_to_pose(goal, st_goal.pose);
+
+    st_start.header.frame_id = "map";
+    st_goal.header.frame_id = "map";
+
+    std::vector<geometry_msgs::PoseStamped> plan;
+    grid_planner->makePlan(st_start, st_goal, plan);
+
+    // nav_msgs::Path spath;
+    // spath.header = plan.back().header;
+    // spath.poses = plan;
+    // spath.header.stamp = ros::Time::now();
+    // path_pub.publish(spath);
+
+    std::vector<geometry_msgs::Pose> pose_plan;
+    for(auto p : plan)
+    {
+        pose_plan.push_back(p.pose);
+    }
+
+    compute_orientations(pose_plan);
+    poses_to_states(si, pose_plan, path);
+}
+
 /**
  * Pose update for Rviz
 **/
@@ -106,25 +145,43 @@ void poseCallback(geometry_msgs::PoseWithCovarianceStamped pose)
     pdp->clearStartStates();
     pdp->addStartState(start_);
 
-    if(first_time)
+    start_is_set = true;
+
+    if(goal_is_set)
     {
-        first_time = false;
-    }
-    else
-    {
+        costmap_mutex->lock();
         bool solved = PLANNER->updateRobot(start_);
-        publishSearch(solved);    
+        publishSearch(solved);
+        costmap_mutex->unlock();
+
     }
     
     ROS_INFO("Position updated");
 }
+
+
 
 /**
  * User Goal callback
 **/  
 void goalCallback(geometry_msgs::PoseStamped goal)
 {
+
+    if(!start_is_set)
+    {
+        ROS_WARN("No start position given. Abort planning");
+        return;
+    }
+
     pose_to_state(goal.pose, goal_);
+
+    if(prediction)
+    {
+        si->freeStates(road);
+        compute_simple_path(start_, goal_, road);
+        ss->as<ReedsSheppCostmap>()->setRoad(road, road_width);
+    }
+
 
     goal_pose = goal;
 
@@ -142,7 +199,9 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     ros::Duration d;
     bool solved = false;
 
+    costmap_mutex->lock();
     solved = PLANNER->as<Planner>()->solve(solveTime);
+    costmap_mutex->unlock();
 
     d = ros::Time::now() - t;
 
@@ -151,10 +210,7 @@ void goalCallback(geometry_msgs::PoseStamped goal)
     
     publishSearch(solved);
 
-    if(update_thread == NULL)
-    {
-        update_thread = new boost::thread(boost::bind(updateTree, update_frequecy));
-    }
+    goal_is_set = true;
 }
 
 bool update_thread_shutdown = false;
@@ -164,6 +220,7 @@ void updateTree(double frequency)
 
     while(ros::ok() && !update_thread_shutdown)
     {
+
         base_pose.stamp_ = ros::Time::now();
         base_pose.frame_id_ = base_frame;
         tf::Stamped<tf::Pose> map_pose;
@@ -174,18 +231,42 @@ void updateTree(double frequency)
         }
         catch (tf::TransformException ex)
         {
-            ROS_ERROR("%s", ex.what());
+            // ROS_ERROR("%s", ex.what());
+            rate.sleep();
             continue;
         }
 
+        // convert transform to ompl state
         ompl::base::State *robot = si->allocState();
         tf_to_state(map_pose, robot);
 
-        if(se2StateSpace->distance(robot, goal_) < 0.2)
+        bool update = false;
+        // if no start was specified or the robot position changed enough
+        // set start in the problem definition
+        if(!start_is_set || si->distance(start_, robot) > 0.2)
         {
-            si->freeState(robot);
-            update_thread_shutdown = true;
+            si->copyState(start_, robot);
+            pdp->clearStartStates();
+            pdp->addStartState(start_);
+            start_is_set = true;
+            update = true;
+        }
 
+        // free state !!
+        si->freeState(robot);
+
+
+        if(!goal_is_set)
+        {
+            rate.sleep();
+            continue;
+        }
+ 
+        // If robot near goal publish gaol as path to stop the local planner
+        if(se2StateSpace->distance(start_, goal_) < 0.3)
+        {
+            // update_thread_shutdown = true;
+            goal_is_set = false;
 
             nav_msgs::Path path;
             path.header = goal_pose.header;
@@ -201,27 +282,20 @@ void updateTree(double frequency)
             path.poses.push_back(poseStmp);
         
             path_pub.publish(path);
-
-            return;
-        }
-
-        // Donc update for small position changes
-        if(si->distance(start_, robot) < 0.2)
-        {
-            si->freeState(robot);
+            
+            rate.sleep();
             continue;
         }
 
-        si->copyState(start_, robot);
-        si->freeState(robot);
-
-        pdp->clearStartStates();
-        pdp->addStartState(start_);
- 
-        bool solved = PLANNER->updateRobot(start_);
-        publishSearch(solved);    
-        
-        ROS_INFO("Position updated");
+        if(update)
+        {
+            costmap_mutex->lock();
+            bool solved = PLANNER->updateRobot(start_);
+            PLANNER->verifyPath();
+            costmap_mutex->unlock();
+            publishSearch(solved);
+            ROS_INFO("Update path");  
+        }
 
         rate.sleep();
     }
@@ -231,6 +305,7 @@ void updateTree(double frequency)
 
 void publishSearch(bool solved)
 {
+    // return;
     PlannerData data(si);
     PLANNER->getPlannerData(data);
 
@@ -239,7 +314,7 @@ void publishSearch(bool solved)
         auto path = pdp->getSolutionPath()->as<PathGeometric>();
         auto states = path->getStates(); 
 
-        ROS_INFO("Solved!");
+        ROS_INFO("Solved! Path has %d vertices", (int)states.size());
 
         vector<geometry_msgs::Pose> poses;
         states_to_poses(si, states, poses);
@@ -281,11 +356,11 @@ void rrtxSetup()
 
     if(constraint)
     {
-        ss.reset( new ReedsSheppCostmap(cost, turningRadius) );
+        ss.reset( new ReedsSheppCostmap(costmap, turningRadius) );
     }
     else
     {
-        ss.reset( new SE2Costmap(cost) );
+        ss.reset( new SE2Costmap(costmap) );
     }
 
     se2StateSpace.reset( new ompl::base::SE2StateSpace );
@@ -293,12 +368,12 @@ void rrtxSetup()
     si.reset( new SpaceInformation(ss) );
 
     if(!constraint)
-        oop.reset( new SE2OptimizationObjective(si, cost) );
+        oop.reset( new SE2OptimizationObjective(si, costmap) );
     else
-        oop.reset( new ReedsSheppOptimizationObjective(si, cost) );
+        oop.reset( new ReedsSheppOptimizationObjective(si, costmap) );
 
 
-    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), cost, 0.30, 0.15) );
+    StateValidityCheckerPtr svcp( new CostmapValidityChecker(si.get(), costmap, 0.30, 0.15) );
     pdp.reset( new ProblemDefinition(si) );
 
     pdp->setOptimizationObjective( oop );
@@ -336,6 +411,9 @@ int main(int argc, char **argv)
     n->param<double>("update_frequency", update_frequecy, 1/5.0);
     n->param<bool>("publish_tree", publish_tree, true);
     n->param<double>("obstalce_resolution", obstacle_resolution, 0.005);
+    n->param<bool>("prediction", prediction, false);
+    n->param<double>("road_width", road_width, 1.0);
+
     // n->param<bool>("limit_time", limitTime, true);
 
     base_pose = tf::Stamped<tf::Pose>(tf::Transform(tf::createQuaternionFromRPY(0,0,0), tf::Vector3(0,0,0)), ros::Time::now(), base_frame);
@@ -352,12 +430,21 @@ int main(int argc, char **argv)
     nav_msgs::GetMap srv;
 
     tfl = new tf::TransformListener(ros::Duration(10));
-    costmap = new costmap_2d::Costmap2DROS("costmap", *tfl);
-    cost = costmap->getCostmap();
+    costmapRos = new costmap_2d::Costmap2DROS("costmap", *tfl);
+    costmap = costmapRos->getCostmap();
+    costmap_mutex = costmap->getMutex();
+
+    grid_planner.reset( new global_planner::GlobalPlanner("grid_planner", costmap, "map") );
 
     rrtxSetup();
 
+    if(update_frequecy > 0)
+    {
+        update_thread = new boost::thread(boost::bind(updateTree, update_frequecy));
+    }
+
     ros::spin();
+    si->freeStates(road);
 
     return 0;
 }

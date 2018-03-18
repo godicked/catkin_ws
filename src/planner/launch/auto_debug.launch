@@ -5,14 +5,14 @@
   <!-- <remap from="map" to="map2"/> -->
   </node>
   
-  <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx_node" output="screen">
+  <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx_node" output="screen" launch-prefix="gdb -ex run --args">
     <rosparam file="$(find planner)/config/costmap_params.yaml" command="load" />
     <rosparam file="$(find planner)/config/rrtx_params.yaml" command="load" />
     <!-- <remap from="map" to="map2"/> -->
   </node>
 
 
-    <include file="$(find fub_localization)/launch/tf.launch" />
+  <include file="$(find fub_localization)/launch/tf.launch" />
 
   <!-- <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map base_link 100" /> -->
 </launch>

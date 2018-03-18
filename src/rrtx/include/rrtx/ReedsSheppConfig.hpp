@@ -55,12 +55,15 @@ public:
 
         bool direction = p.length_[0] >= 0;
 
+        // ROS_INFO("---");
+        double cost = dist;
         for(int i = 0; i < 5; i++)
         {
             double d = p.length_[i];
+            // ROS_INFO("%.2f", d);
             if(d < 0)
             {
-                dist += -2 * d;
+                dist += -1 * d;
             }
             else
             {
@@ -71,10 +74,13 @@ public:
             if( direction != dir && d != 0)
             {
                 direction = dir;
-                dist += 10;
+                dist += 5;
             }
 
         }
+        cost = dist - cost;
+        // ROS_INFO("cost: %.2f", cost);
+        // ROS_INFO("---");
         // return ompl::base::Cost(p.length());
         return ompl::base::Cost(dist);
     }
@@ -111,18 +117,36 @@ public:
         road_ = road;
         width_ = width;
         sample_road_ = true;
+
+        double dist = 0;
+        for(int i = 0; i < road.size() -1; i++)
+        {
+            dist += CompoundStateSpace::distance(road[i], road[i+1]);
+        }
+
+        dist_ = dist;
     }
 
     // We do not consider the yaw as dimension.
     unsigned int getDimension() const override
     {
-        return 2;
+        return 3;
     }
 
-    // double getMeasure() const override
-    // {
-    //     return ob::ReedsSheppStateSpace::getMeasure();
-    // }
+    double getMeasure() const override
+    {
+        if(!sample_road_)
+        {
+            return ob::ReedsSheppStateSpace::getMeasure();
+        }
+        
+        double max = costmap_->getSizeInMetersX() * costmap_->getSizeInMetersY();
+        double now = width_ * dist_;
+
+        double ratio = now / max;
+        return ob::ReedsSheppStateSpace::getMeasure() * ratio;
+
+    }
 
     ob::StateSamplerPtr allocStateSampler() const override
     {
@@ -144,6 +168,7 @@ public:
 protected:
     costmap_2d::Costmap2D *costmap_;
     std::vector<ob::State *> road_;
+    double dist_;
     bool sample_road_ = false;
     double width_;
 };

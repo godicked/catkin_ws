@@ -1,15 +1,15 @@
 <launch>
   <master auto="start"/>
   
-  <node pkg="map_server" type="map_server" name="map_server" args="$(find rrtx)/config/maps/blank.yaml">
-  <remap from="map" to="map2"/>
+  <node pkg="map_server" type="map_server" name="map_server" args="$(find rrtx)/config/maps/lab.yaml">
+  <!-- <remap from="map" to="map2"/> -->
   </node>
   
   <node pkg="rrtx" type="rrtx_node"  respawn="false" name="rrtx_node" output="screen">
     <rosparam file="$(find rrtx)/config/costmap_params.yaml" command="load" />
     <rosparam file="$(find rrtx)/config/rrtx_params.yaml" command="load" />
-    <remap from="map" to="map2"/>
+    <!-- <remap from="map" to="map2"/> -->
   </node>
 
-  <!-- <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map base_link 100" /> -->
+  <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map base_link 100" />
 </launch>

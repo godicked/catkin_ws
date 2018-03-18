@@ -156,21 +156,22 @@ void RRTxPlanner::updatePath()
     auto path = pdp_->getSolutionPath()->as<ompl::geometric::PathGeometric>();
     auto states = path->getStates();
 
-    for (int i = 0; i < states.size() - 1; i++)
-    {
-        auto v = states[i];
-        auto u = states[i + 1];
-        if (!si_->checkMotion(v, u))
-        {
-            auto center = si_->allocState();
-            si_->getStateSpace()->interpolate(v, u, 0.5, center);
-            rrtx_->updateTree(center, si_->distance(v, u));
-            path = pdp_->getSolutionPath()->as<ompl::geometric::PathGeometric>();
-            states = path->getStates();
-            i = -1;
-            si_->freeState(center);
-        }
-    }
+    // for (int i = 0; i < states.size() - 1; i++)
+    // {
+    //     auto v = states[i];
+    //     auto u = states[i + 1];
+    //     if (!si_->checkMotion(v, u))
+    //     {
+    //         auto center = si_->allocState();
+    //         si_->getStateSpace()->interpolate(v, u, 0.5, center);
+    //         rrtx_->updateTree(center, si_->distance(v, u));
+    //         path = pdp_->getSolutionPath()->as<ompl::geometric::PathGeometric>();
+    //         states = path->getStates();
+    //         i = -1;
+    //         si_->freeState(center);
+    //     }
+    // }
+    rrtx_->verifyPath();
 }
 
 bool RRTxPlanner::fillPath(const geometry_msgs::PoseStamped &goal, std::vector<geometry_msgs::PoseStamped> &plan)

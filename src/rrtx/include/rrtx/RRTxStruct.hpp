@@ -106,6 +106,12 @@ struct motion_compare
     }
 };
 
+struct RePlannerData
+{
+    std::vector<ob::State *> orphan;
+    std::vector<ob::State *> tested;
+};
+
 }; // namespace
 
 #endif

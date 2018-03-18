@@ -1,4 +1,5 @@
 #include <ompl/base/StateSampler.h>
+#include <math.h>
 
 namespace fub
 {
@@ -7,8 +8,8 @@ namespace planning
 
 /**
  * class RoadSampler
- * The RoadSampler extend the CompoundStateSampler and allows
- * to set predicted Road. The idea is to sample states near the road
+ * The RoadSampler extends the CompoundStateSampler and allows
+ * to set the predicted Road. The idea is to sample states near the road
  * if one is given.
 **/
 
@@ -25,7 +26,10 @@ public:
         {
             // std::cout << "sample near" << std::endl;
             double index = rng_.uniformInt(0, road_.size()-1);
+            // double yaw = rng_.uniformReal(-M_PI, M_PI);
             ob::CompoundStateSampler::sampleUniformNear(state, road_[index], width_);
+            // setYaw(state, yaw);
+
             return;
         }
         else

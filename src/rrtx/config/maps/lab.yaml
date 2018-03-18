@@ -1,6 +1,6 @@
-image: parking.png
+image: Lab_map_600x400.png
 resolution: 0.02
-origin: [-1.5, -1.5, 0.0]
+origin: [ 0, 0, 0.0]
 occupied_thresh: 0.7
 free_thresh: 0.196
 negate: 0
