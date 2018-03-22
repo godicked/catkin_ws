@@ -1,0 +1,25 @@
+!!python/object/new:dynamic_reconfigure.encoding.Config
+dictitems:
+  execution_frequency: 100.0
+  groups: !!python/object/new:dynamic_reconfigure.encoding.Config
+    dictitems:
+      execution_frequency: 100.0
+      groups: !!python/object/new:dynamic_reconfigure.encoding.Config
+        state: []
+      id: 0
+      min_speed: 0.5
+      name: Default
+      parameters: !!python/object/new:dynamic_reconfigure.encoding.Config
+        state: []
+      parent: 0
+      state: true
+      steer_center: 110.0
+      steer_direction: 0
+      steer_max: 90.0
+      type: ''
+    state: []
+  min_speed: 0.5
+  steer_center: 110.0
+  steer_direction: 0
+  steer_max: 90.0
+state: []

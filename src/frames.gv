@@ -1,10 +1,15 @@
 digraph G {
-"map" -> "my_frame"[label="Broadcaster: /tf\nAverage rate: 10.192 Hz\nMost recent transform: 1519654899.137 ( 1.948 sec old)\nBuffer length: 4.906 sec\n"];
-"map" -> "odom"[label="Broadcaster: /map_to_odom_tf\nAverage rate: 80.393 Hz\nMost recent transform: 1519654900.752 ( 0.332 sec old)\nBuffer length: 6.518 sec\n"];
-"odom" -> "base_link"[label="Broadcaster: /odometry_publisher\nAverage rate: 997.496 Hz\nMost recent transform: 1519654900.757 ( 0.328 sec old)\nBuffer length: 4.988 sec\n"];
-"base_link" -> "laser"[label="Broadcaster: /base_to_laser_tf\nAverage rate: 10.186 Hz\nMost recent transform: 1519654900.850 ( 0.235 sec old)\nBuffer length: 4.909 sec\n"];
+"world" -> "map"[label="Broadcaster: /world2map\nAverage rate: 10.193 Hz\nMost recent transform: 1521721020.024 ( -0.037 sec old)\nBuffer length: 4.905 sec\n"];
+"map" -> "map_static"[label="Broadcaster: /stdr_server\nAverage rate: 10.205 Hz\nMost recent transform: 1521721019.922 ( 0.064 sec old)\nBuffer length: 4.900 sec\n"];
+"map_static" -> "robot0"[label="Broadcaster: /robot_manager\nAverage rate: 10.205 Hz\nMost recent transform: 1521721019.976 ( 0.010 sec old)\nBuffer length: 4.899 sec\n"];
+"robot0" -> "robot0_laser_0"[label="Broadcaster: /robot_manager\nAverage rate: 10.205 Hz\nMost recent transform: 1521721019.976 ( 0.010 sec old)\nBuffer length: 4.899 sec\n"];
+"robot0" -> "robot0_sonar_0"[label="Broadcaster: /robot_manager\nAverage rate: 10.205 Hz\nMost recent transform: 1521721019.976 ( 0.010 sec old)\nBuffer length: 4.899 sec\n"];
+"robot0" -> "robot0_sonar_1"[label="Broadcaster: /robot_manager\nAverage rate: 10.205 Hz\nMost recent transform: 1521721019.976 ( 0.010 sec old)\nBuffer length: 4.899 sec\n"];
+"robot0" -> "robot0_sonar_2"[label="Broadcaster: /robot_manager\nAverage rate: 10.205 Hz\nMost recent transform: 1521721019.976 ( 0.010 sec old)\nBuffer length: 4.899 sec\n"];
+"robot0" -> "robot0_sonar_3"[label="Broadcaster: /robot_manager\nAverage rate: 10.205 Hz\nMost recent transform: 1521721019.976 ( 0.010 sec old)\nBuffer length: 4.899 sec\n"];
+"robot0" -> "robot0_sonar_4"[label="Broadcaster: /robot_manager\nAverage rate: 10.205 Hz\nMost recent transform: 1521721019.976 ( 0.010 sec old)\nBuffer length: 4.899 sec\n"];
 edge [style=invis];
  subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
-"Recorded at time: 1519654901.085"[ shape=plaintext ] ;
- }->"map";
+"Recorded at time: 1521721019.987"[ shape=plaintext ] ;
+ }->"world";
 }

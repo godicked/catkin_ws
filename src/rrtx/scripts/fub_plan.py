@@ -5,13 +5,23 @@ import numpy as np
 from nav_msgs.msg import Path
 from fub_trajectory_msgs.msg import Trajectory, TrajectoryPoint
 from geometry_msgs.msg import Twist
-
+import tf
 
 car_speed = 1.0 # m/s
 car_acceleration = 1.0 # m/s2
 
 path_pub = None
 
+listener = tf.TransformListener()
+
+def transformPoses(poses):
+    tf_poses = []
+    listener.waitForTransform("map", "odom", rospy.Time.now(), rospy.Duration(1.0))
+
+    for p in poses:
+        tf_poses.append(listener.transformPose("odom", p))
+    
+    return tf_poses
 
 def distance(p1, p2):
     dx = p1.x - p2.x
@@ -72,6 +82,7 @@ def path_callback(path):
     plan.child_frame_id = "/base_link"
     plan.header.stamp = rospy.Time.now()
 
+    path.poses = transformPoses(path.poses)
     (plan, dist) = convert_to_fub_trajectory(path.poses, plan)
 
     print 'send path'

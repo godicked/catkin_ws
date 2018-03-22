@@ -1,0 +1,29 @@
+!!python/object/new:dynamic_reconfigure.encoding.Config
+dictitems:
+  groups: !!python/object/new:dynamic_reconfigure.encoding.Config
+    dictitems:
+      groups: !!python/object/new:dynamic_reconfigure.encoding.Config
+        state: []
+      id: 0
+      name: Default
+      parameters: !!python/object/new:dynamic_reconfigure.encoding.Config
+        state: []
+      parent: 0
+      state: true
+      static_wanted_speed: 0.05
+      steering_lookahead_time: 2.0
+      steering_min_lookahead_dist: 0.02
+      type: ''
+      use_static_wanted_speed: false
+      velocity_lookahead_dist_error_factor: 0.01
+      velocity_lookahead_time: 0.0
+      velocity_max_offset: 0.1
+    state: []
+  static_wanted_speed: 0.05
+  steering_lookahead_time: 2.0
+  steering_min_lookahead_dist: 0.02
+  use_static_wanted_speed: false
+  velocity_lookahead_dist_error_factor: 0.01
+  velocity_lookahead_time: 0.0
+  velocity_max_offset: 0.1
+state: []

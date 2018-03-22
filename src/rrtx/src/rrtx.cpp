@@ -73,14 +73,16 @@ namespace rrt
         nn_->add(goal_);
 
         // As defined in RRT*
-        const double dim = si_->getStateDimension() + 0.0;
+        // const double dim = si_->getStateDimension() + 0.0;
+        double dim = 2.0;
         const double free = si_->getSpaceMeasure();
+        // double free = 44.0;
 
-        y_ = std::pow(2*(1 + 1 / dim), 1 / dim) * std::pow(free / unitNBallMeasure(dim), 1 / dim);
+        y_ = std::pow(2*(1 + 1 / dim), 1.0 / dim) * std::pow(free / unitNBallMeasure(dim), 1.0 / dim);
 
         symmetric_ = si_->getStateSpace()->hasSymmetricDistance();
         // if(symmetric_) cout << "SYMMETRIC" << endl;
-        ROS_INFO("Space measure: %.2f", si_->getSpaceMeasure());
+        // ROS_INFO("Space measure: %.2f", si_->getSpaceMeasure());
     }
 
     PlannerStatus RRTx::solve(const PlannerTerminationCondition &ptc)
@@ -94,6 +96,10 @@ namespace rrt
         vector<ros::Duration> times;
         vector<double> radius;
 
+        e_time = ros::Duration(0);
+        s_time = ros::Duration(0);
+        r_time = ros::Duration(0);
+
         auto time = ros::Time::now();
 
         while(!ptc)
@@ -101,12 +107,12 @@ namespace rrt
             iteration_++;
             grow();
             
-            costs.push_back(vbot_->lmc.value());
-            times.push_back(ros::Time::now() - time);
-            radius.push_back(radius_);
+            // costs.push_back(vbot_->lmc.value());
+            // times.push_back(ros::Time::now() - time);
+            // radius.push_back(radius_);
         }
 
-        auto total_time = times.back();
+        auto total_time = s_time + e_time + r_time;
         double ps = 100 * s_time.toSec() / total_time.toSec();
         double pe = 100 * e_time.toSec() / total_time.toSec();
         double pr = 100 * r_time.toSec() / total_time.toSec();
@@ -114,19 +120,19 @@ namespace rrt
         ROS_INFO("Grow %.2f sec\nNearestNeighbor search %.2f%%, Extend %.2f%%, ReduceInconsitency %.2f%%", total_time.toSec(), ps, pe, pr);
 
 
-        ofstream myfile;
-        myfile.open ("/home/godicke/BachelorArbeit/benchmark.txt");
+        // ofstream myfile;
+        // myfile.open ("/home/godicke/BachelorArbeit/benchmark.txt");
 
-        if( !myfile )
-        {
-           cout << "Couldn't open file."  << endl;
-        }
+        // if( !myfile )
+        // {
+        //    cout << "Couldn't open file."  << endl;
+        // }
         
-        for(int i = 0; i < costs.size(); i++)
-        {
-            myfile << i << "," << times[i].toSec() << "," << costs[i] << "," << radius[i] << "\n";
-        }
-        myfile.close();
+        // for(int i = 0; i < costs.size(); i++)
+        // {
+        //     myfile << i << "," << times[i].toSec() << "," << costs[i] << "," << radius[i] << "\n";
+        // }
+        // myfile.close();
 
         computePath();
 
@@ -143,6 +149,28 @@ namespace rrt
             mpath.push_back(v);
         }
 
+        // vector<Motion *> trimmed;
+        // for(int i = 0; i < mpath.size(); i++)
+        // {
+        //     if(i == 0 || i == mpath.size() - 1)
+        //     {
+        //         trimmed.push_back(mpath[i]);
+        //     }
+        //     else
+        //     {
+        //         auto v = trimmed.back();
+        //         auto u = mpath[i];
+        //         auto w = mpath[i+1];
+                
+        //         auto cost = opt_->combineCosts(opt_->motionCost(v->state, u->state), opt_->motionCost(u->state, w->state));
+        //         auto trimmed_cost = opt_->motionCost(v->state, w->state);
+
+        //         if(!si_->checkMotion(v->state, w->state) || opt_->isCostBetterThan(cost, trimmed_cost));
+        //         {
+        //             trimmed.push_back(mpath[i]);
+        //         }
+        //     }
+        // }
 
         // fill path information
         std::shared_ptr<geometric::PathGeometric> path( new geometric::PathGeometric(si_) );
@@ -156,7 +184,7 @@ namespace rrt
         pdef_->clearSolutionPaths();
         pdef_->addSolutionPath(solution);
 
-        cout << "path cost: " << path->cost(opt_) << endl;
+        // cout << "path cost: " << path->cost(opt_) << endl;
         cout << "path length: " << path->length() << endl;
 
         for(int i = 0; i < mpath.size() -1; i++)
@@ -216,9 +244,9 @@ namespace rrt
             data.addEdge(base::PlannerDataVertex(m->state), base::PlannerDataVertex(m->parent->state));
         }
 
-        cout << "vertices " << nn_->size() << endl;
-        cout << "radius " << radius_ << endl;
-        cout << "dimension " << si_->getStateDimension() << endl;
+        // cout << "vertices " << nn_->size() << endl;
+        // cout << "radius " << radius_ << endl;
+        // cout << "dimension " << si_->getStateDimension() << endl;
     }
 
     /*
@@ -298,15 +326,9 @@ namespace rrt
             u->inNr.push_back(v);
 
             // Inverse trajectory u -> v.
-            if  (symmetric_ ||
-                (si_->distance(u->state, v->state) <= maxDist_ &&
-                si_->checkMotion(u->state, v->state)))
-            {
-                costs_[std::make_pair(u, v)] = opt_->motionCost(u->state, v->state);
-                u->outNr.push_back(v);
-                v->inN0.push_back(u);
-            }
-            
+            costs_[std::make_pair(u, v)] = opt_->motionCost(u->state, v->state);
+            u->outNr.push_back(v);
+            v->inN0.push_back(u);
         }
     }
 
@@ -319,14 +341,14 @@ namespace rrt
     void RRTx::cullNeighbors(Motion *v)
     {
         auto it = v->outNr.begin();
-
         while(it != v->outNr.end())
         {
             Motion *u = *it;
             if(v->parent != u && radius_ < distance(v, u))
             {
+                // cout << "cull" << endl;
                 it = v->outNr.erase(it);
-                removeNbhs(u->inNr, v);
+                removeNbhs(v->inNr, u);
             }
             else
             {
@@ -379,26 +401,30 @@ namespace rrt
     */
     void RRTx::reduceInconsistency()
     {
-        // while(  !q_.empty() &&
-        //         (q_.top()->key < vbot_->key ||
-        //         !opt_->isCostEquivalentTo(vbot_->lmc, vbot_->g) ||
-        //         opt_->isCostEquivalentTo(vbot_->g, opt_->infiniteCost()) ||
-        //         queueContains(vbot_)))
-        while(!q_.empty())
+        // ROS_INFO("start reduce %d", (int)q_.size());
+        while(  !q_.empty() &&
+                (q_.top()->data->lmc.value() < vbot_->lmc.value() ||
+                !opt_->isCostEquivalentTo(vbot_->lmc, vbot_->g) ||
+                opt_->isCostEquivalentTo(vbot_->g, opt_->infiniteCost()) ||
+                queueContains(vbot_)))
         {
 
             //Take first Motion from queue and remove it
             Motion *v = queuePop();
-            
             auto cost = opt_->combineCosts(v->lmc, epsilon);
+
             if(opt_->isCostBetterThan(cost, v->g))
             {
                 updateLMC(v);
                 rewireNeighbors(v);
             }
 
+            // ROS_INFO("lmc: %.2f (q %d)", v->lmc.value(), (int)q_.size());
+
             v->g = v->lmc;
         }
+
+        // ROS_INFO("stop reduce");
     }
 
 
@@ -429,10 +455,11 @@ namespace rrt
     */
     void RRTx::verrifyQueue(Motion *v)
     {
+        // ROS_INFO("verrify %.2f", v->lmc.value());
         if(queueContains(v))
             queueUpdate(v);
         else
-            queueInsert(v);
+            queueInsert(v);        
     }
 
     
@@ -459,6 +486,7 @@ namespace rrt
             if(opt_->isCostBetterThan(cost, v->lmc))
             {
                 p = u;
+                // v->lmc = cost;
             }
         }
         makeParentOf(p, v);
@@ -500,8 +528,9 @@ namespace rrt
         {
             if(*it == toRm)
             {
+                // cout << "remove nhb.." << endl;
                 nbhs.erase(it);
-                cout << "removeNbh true" << endl;
+                // cout << "removeNbh true" << endl;
                 return;
             }
         }
@@ -540,8 +569,8 @@ namespace rrt
     */
 	void RRTx::queueInsert(Motion *v)
     {
-        updateKey(v); 
-        motionHash_[v] = q_.push(v);
+        updateKey(v);
+        motionHash_[v] = q_.insert(v);
     }
     
     /*
@@ -559,6 +588,8 @@ namespace rrt
     {
         updateKey(v);
         q_.update(motionHash_[v]);
+        // ROS_INFO("update");
+        // ROS_INFO("update %.2f", v->lmc.value());
     }
     
     /*
@@ -566,7 +597,7 @@ namespace rrt
     */
     void RRTx::queueRemove(Motion *v)
     {
-        q_.erase(motionHash_[v]);
+        q_.remove(motionHash_[v]);
         motionHash_.erase(v);
     }
 
@@ -575,7 +606,7 @@ namespace rrt
     */
     Motion *RRTx::queuePop()
     {
-        Motion *toRemove = q_.top();
+        Motion *toRemove = q_.top()->data;
         motionHash_.erase(toRemove);
         q_.pop();
         return toRemove;
@@ -599,10 +630,10 @@ namespace rrt
         int    n       = nn_->size() + 1;
         // double term1   = (y_ / M_PI) * (log(n) / n);
         // radius_  = min( pow(term1, 0.5), maxDist_);
-        radius_ = y_ * std::pow(log(n) / n, 1.0 / si_->getStateDimension());
-        // radius_ = y_ * std::pow(log(n) / n, 1 / 2.0);
-        radius_ = min(radius_, maxDist_);
-        // TODO: mettre bien
+        // radius_ = y_ * std::pow(log(n) / n, 1.0 / si_->getStateDimension());
+        radius_ = y_ * std::pow(log(n) / n, 1 / 2.0);
+        radius_ = min(radius_ , maxDist_);
+        // radius_ = maxDist_;
         //cout << "new radius_: " << radius_ << endl;
     }
 
@@ -809,6 +840,9 @@ namespace rrt
             for(auto u : nbhs)
             {
                 Cost c = getCost(v, u);
+                if(v < u)
+                    continue;
+
                 if(opt_->isCostEquivalentTo(c, opt_->infiniteCost()) && orphanHash.find(v) != orphanHash.end()) 
                     continue;
 
@@ -884,6 +918,8 @@ namespace rrt
         ros::Time t = ros::Time::now();
         bool collision = true;
         bool exit = false;
+
+        auto solved = PlannerStatus(true, false);
         // ob::PlannerState status;
         while(collision)
         {
@@ -894,7 +930,7 @@ namespace rrt
 
             auto last_valid = make_pair<State*, double>(si_->allocState(), 0);
             
-            while(s->parent != nullptr && !exit)
+            while(s->parent != nullptr && !exit && solved)
             {
                 // std::cout << "motion check" << std::endl;
 
@@ -902,7 +938,7 @@ namespace rrt
                 if(!valid)
                 {
                     collision = true;
-                    updateTree(last_valid.first, 2.0);
+                    solved = updateTree(last_valid.first, 2.0);
                     exit = true;
                 }
                 s = s->parent;
@@ -912,7 +948,10 @@ namespace rrt
         }
 
         ros::Duration d = ros::Time::now() - t;
-        ROS_INFO("Verrify Path took %.2f sec", d.toSec());
+        if(d.toSec() > 0.01)
+            ROS_INFO("Verrify Path took %.2f sec", d.toSec());
+
+        return solved;
     }
 
 

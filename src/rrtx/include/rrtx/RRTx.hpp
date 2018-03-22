@@ -13,6 +13,7 @@
 #include <ompl/base/ProblemDefinition.h>
 #include <ompl/base/Planner.h>
 #include <ompl/base/PlannerTerminationCondition.h>
+#include <ompl/datastructures/BinaryHeap.h>
 
 
 // namespace ob = ompl::base;
@@ -25,9 +26,10 @@ namespace rrt
     class RRTx : public ob::Planner
     {
 
-        typedef boost::heap::fibonacci_heap<Motion *, 
-                boost::heap::compare<motion_compare> > Queue;
-        typedef Queue::handle_type handle_t;
+        // typedef boost::heap::fibonacci_heap<Motion *, 
+        //         boost::heap::compare<motion_compare> > Queue;
+        typedef ompl::BinaryHeap<Motion *, motion_compare > Queue;
+        typedef Queue::Element* handle_t;
         typedef boost::unordered_map<Motion *, handle_t> MotionHash;
         typedef boost::unordered_map<Motion *, bool> OrphanHash;
         typedef boost::unordered_map<MotionPair, ob::Cost, hash_motion_pair, motion_pair_equal> MotionCosts;
@@ -43,6 +45,11 @@ namespace rrt
             void setEpsilon(double e)
             {
                 epsilon = ob::Cost(e);
+            }
+
+            void setGoalBias(int bias)
+            {
+                goal_bias_ = bias;
             }
 
             //  Default solve with time as termination condition from base class
@@ -157,7 +164,7 @@ namespace rrt
             double maxDist_ = 4.55;
             bool symmetric_;
 
-            ob::Cost epsilon = ob::Cost(0.01);
+            ob::Cost epsilon = ob::Cost(0.05);
 
             double  radius_;
             double  y_;

@@ -24,11 +24,11 @@ struct NodeKey
 
   bool operator<(const NodeKey key) const
   {
-    return k1 < key.k1 || abs(k1 - key.k1) < 0.00001 && k2  < key.k2;
+    return k1 < key.k1 || (abs(k1 - key.k1) < 0.00001 && k2  < key.k2);
   }
   bool operator>(const NodeKey key) const
   {
-    return k1 > key.k1 || abs(k1 - key.k1) < 0.00001 && k2  > key.k2;
+    return k1 > key.k1 || (abs(k1 - key.k1) < 0.00001 && k2  > key.k2);
   }
 };
 
@@ -102,7 +102,8 @@ struct motion_compare
 {
     bool operator()(const Motion *v1, const Motion *v2) const
     {
-        return v1->key > v2->key;
+        // return !(v1->key < v2->key);
+        return v1->key.k1 < v2->key.k1;
     }
 };
 

@@ -1,12 +1,12 @@
-constraint: false
-solve_time: 2.0
-turning_radius: 0.35
-max_dist: 4
+constraint: true
+solve_time: 3.0
+turning_radius: 0.55
+max_dist: 3
 # grow_size: 800
 limit_time: true
 obstacle_resolution: 0.03
 base_frame: robot0
-update_frequency: 1
+update_frequency: 10
 publish_tree: true
 prediction: false
 # road_width: 2.0

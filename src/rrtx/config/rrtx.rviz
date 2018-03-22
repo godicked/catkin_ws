@@ -99,8 +99,7 @@ Visualization Manager:
       Marker Topic: /rrtx_node/tree
       Name: Marker
       Namespaces:
-        pose: true
-        tree: true
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
@@ -136,7 +135,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Scale: 185.007599
+      Scale: 78.0475235
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
       X: 4.60057783

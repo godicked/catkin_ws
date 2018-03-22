@@ -14,5 +14,8 @@
 
     <include file="$(find fub_localization)/launch/tf.launch" />
 
+  <node pkg="rrtx" type="fub_plan.py" name="plan_converter" >
+  </node>
+
   <!-- <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="0 0 0 0 0 0 1 map base_link 100" /> -->
 </launch>
